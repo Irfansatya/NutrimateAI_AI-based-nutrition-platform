@@ -87,6 +87,7 @@ export default function DashboardPage() {
           muted
           loop
           playsInline
+          preload="none"
           poster="/bg-fitur.png"
         >
           <source src="/videos/video-background.mp4" type="video/mp4" />

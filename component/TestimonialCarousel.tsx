@@ -1,36 +1,33 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 
 const testimonials = [
   {
-    name: "Sari Rahayu",
-    role: "Ibu Hamil (Trimester 2) · Surabaya",
-    text: "NutrimateAI membantu saya memahami kebutuhan nutrisi selama kehamilan dengan cara yang sangat praktis. Anggaran pangan keluarga kami tetap aman dan terukur.",
-    avatarBg: "from-[#d4edd2] to-[#80c8a6]",
-    initials: "SR",
+    name: "Rina Pratiwi",
+    photo: "https://i.pravatar.cc/500?img=47",
+    text: "NutrimateAI membantu saya lebih memahami kebutuhan gizi selama mendampingi tumbuh kembang si kecil.",
   },
   {
-    name: "Dewi Lestari",
-    role: "Ibu Anak 14 Bulan · Semarang",
-    text: "Rekomendasi menu hariannya sangat bervariasi dan ramah di kantong. Saya tidak perlu bingung lagi memikirkan kebutuhan zat besi dan protein si kecil.",
-    avatarBg: "from-[#fae5c6] to-[#f4b56c]",
-    initials: "DL",
+    name: "Dinda Lestari",
+    photo: "https://i.pravatar.cc/500?img=32",
+    text: "Rekomendasi makanannya terasa lebih relevan karena disesuaikan dengan kondisi dan kebutuhan saya.",
   },
   {
-    name: "Rina Kusuma",
-    role: "Ibu Menyusui · Yogyakarta",
-    text: "Pengingat hariannya langsung ke WhatsApp sangat membantu kesibukan saya sehari-hari. Saya jadi lebih teratur menjaga kualitas ASI untuk bayi.",
-    avatarBg: "from-[#cfe6f4] to-[#7eb7de]",
-    initials: "RK",
+    name: "Ayu Maharani",
+    photo: "https://i.pravatar.cc/500?img=12",
+    text: "Pengingat lewat WhatsApp membuat saya tidak mudah lupa dengan jadwal dan kebutuhan nutrisi harian.",
   },
   {
-    name: "Ayu Wulandari",
-    role: "Penerima Manfaat NutriHelp · Demak",
-    text: "Melalui fitur bantuan donasi, keluarga kami merasa sangat didukung saat masa-masa sulit. Anak kami tetap bisa mendapatkan makanan bergizi untuk tumbuh kembangnya.",
-    avatarBg: "from-[#edd6f7] to-[#b673d4]",
-    initials: "AW",
+    name: "Siti Rahma",
+    photo: "https://i.pravatar.cc/500?img=44",
+    text: "Informasinya ringkas dan mudah dipahami. Saya jadi lebih percaya diri dalam menyiapkan makanan untuk anak.",
+  },
+  {
+    name: "Maya Putri",
+    photo: "https://i.pravatar.cc/500?img=5",
+    text: "Saya suka karena satu platform menggabungkan pemeriksaan kondisi, rekomendasi, dan pengingat nutrisi.",
   },
 ];
 
@@ -38,98 +35,141 @@ export default function TestimonialCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const getStep = useCallback(() => {
+    if (!trackRef.current) return 533; // fallback 515 + 18
+    const firstCard = trackRef.current.children[0] as HTMLElement;
+    if (!firstCard) return 533;
+    const gap = parseFloat(window.getComputedStyle(trackRef.current).gap) || 18;
+    return firstCard.getBoundingClientRect().width + gap;
+  }, []);
+
+  const updatePosition = useCallback((index: number, animate = true) => {
+    if (!viewportRef.current || !trackRef.current) return;
+    const step = getStep();
+    const visibleCount = Math.max(1, Math.floor(viewportRef.current.clientWidth / step));
+    const maxIndex = Math.max(0, testimonials.length - visibleCount);
+    const clampedIndex = Math.min(index, maxIndex);
+
+    const offset = clampedIndex * step;
+    trackRef.current.style.transition = animate ? "transform .65s cubic-bezier(.2,.75,.2,1)" : "none";
+    trackRef.current.style.transform = `translateX(-${offset}px)`;
+  }, [getStep]);
+
+  const handleNext = useCallback(() => {
+    if (!viewportRef.current) return;
+    const step = getStep();
+    const visibleCount = Math.max(1, Math.floor(viewportRef.current.clientWidth / step));
+    const maxIndex = Math.max(0, testimonials.length - visibleCount);
+    setCurrentIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
+  }, [getStep]);
+
+  const handlePrev = useCallback(() => {
+    if (!viewportRef.current) return;
+    const step = getStep();
+    const visibleCount = Math.max(1, Math.floor(viewportRef.current.clientWidth / step));
+    const maxIndex = Math.max(0, testimonials.length - visibleCount);
+    setCurrentIndex((prev) => (prev <= 0 ? maxIndex : prev - 1));
+  }, [getStep]);
+
   useEffect(() => {
-    if (isPaused) return;
-    const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % testimonials.length);
-    }, 4500);
-    return () => clearInterval(timer);
-  }, [isPaused]);
+    updatePosition(currentIndex, true);
+  }, [currentIndex, updatePosition]);
 
-  const handlePrev = () => {
-    setCurrentIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length);
-  };
+  useEffect(() => {
+    const handleResize = () => updatePosition(currentIndex, false);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [currentIndex, updatePosition]);
 
-  const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % testimonials.length);
-  };
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (isPaused || prefersReducedMotion) return;
+
+    const interval = setInterval(() => {
+      handleNext();
+    }, 4200);
+
+    return () => clearInterval(interval);
+  }, [isPaused, handleNext]);
 
   return (
     <div
-      className="testimonial-container"
+      className="testimonial-container relative"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Cards Viewport */}
-      <div className="overflow-hidden">
+      {/* Testimonials Viewport */}
+      <div ref={viewportRef} className="testimonial-viewport overflow-hidden relative">
         <div
-          className="flex gap-5 transition-transform duration-700 ease-out"
-          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+          ref={trackRef}
+          className="testimonial-track flex gap-[18px] w-max will-change-transform"
         >
           {testimonials.map((item, i) => (
-            <div key={i} className="w-full shrink-0">
-              <div className="testimonial-card w-full max-w-[720px] mx-auto min-h-[300px] border border-[#e0e4e2] rounded-2xl bg-white p-5 sm:p-7 grid grid-cols-1 sm:grid-cols-[190px_1fr] gap-6 shadow-[0_4px_16px_rgba(0,0,0,0.03)]">
-                {/* Photo / Avatar Box */}
-                <div
-                  className={`testimonial-photo relative overflow-hidden rounded-xl min-h-[180px] sm:min-h-[240px] bg-gradient-to-br ${item.avatarBg} flex flex-col justify-between p-4`}
-                >
-                  <div className="w-12 h-12 rounded-full bg-white/40 backdrop-blur-sm flex items-center justify-center font-bold text-neutral-800 text-base shadow-sm">
-                    {item.initials}
-                  </div>
-
-                  <div className="relative z-10 pt-4">
-                    <Image
-                      src="/logo_NutrimateAI_putih.svg"
-                      alt="NutrimateAI"
-                      width={100}
-                      height={24}
-                      className="w-[90px] h-auto object-contain drop-shadow"
-                    />
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="testimonial-content flex flex-col justify-between py-1">
-                  <div>
-                    <span className="quote-mark text-4xl sm:text-5xl font-serif text-[#05976A] leading-none select-none">
-                      “
-                    </span>
-                    <p className="text-base sm:text-lg text-[#151817] leading-relaxed -mt-2 mb-4 font-normal">
-                      {item.text}
-                    </p>
-                  </div>
-
-                  <div className="testimonial-meta pt-3 border-t border-neutral-100 flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-[#111] uppercase tracking-wide">
-                        {item.name}
-                      </h4>
-                      <p className="text-xs text-[#707773] mt-0.5">{item.role}</p>
-                    </div>
-
-                    <div className="stars text-amber-500 text-sm tracking-widest" aria-label="Rating 5 bintang">
-                      ★★★★★
-                    </div>
-                  </div>
+            <article
+              key={i}
+              className="testimonial-card w-[min(86vw,440px)] sm:w-[515px] min-h-[275px] sm:min-h-[322px] border border-[#e0e4e2] rounded-[17px] bg-white p-[11px] sm:p-[14px] grid grid-cols-[145px_1fr] sm:grid-cols-[205px_1fr] gap-[13px] sm:gap-[18px] shadow-[0_3px_10px_rgba(0,0,0,0.025)] shrink-0"
+            >
+              {/* Photo */}
+              <div className="testimonial-photo relative overflow-hidden rounded-[11px] min-h-[250px] sm:min-h-[292px] bg-[#e8eeeb]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.photo}
+                  alt={`Foto pengguna ${item.name}`}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute left-[11px] sm:left-[13px] bottom-[12px] sm:bottom-[14px] z-10 w-[108px] sm:w-[110px] max-w-[72%]">
+                  <Image
+                    src="/logo_NutrimateAI_putih.svg"
+                    alt="NutrimateAI"
+                    width={110}
+                    height={26}
+                    className="w-full h-auto object-contain drop-shadow-[0_1px_3px_rgba(0,0,0,0.22)]"
+                  />
                 </div>
               </div>
-            </div>
+
+              {/* Content */}
+              <div className="testimonial-content flex flex-col justify-between p-[6px_5px_5px_0] min-w-0">
+                <div>
+                  <div className="quote-mark text-[44px] sm:text-[52px] leading-[0.7] font-bold text-[#111] mb-[10px] sm:mb-[15px] select-none">
+                    “
+                  </div>
+                  <p className="testimonial-text text-base sm:text-[19px] leading-[1.35] tracking-[-0.35px] text-[#121517] m-0 font-normal">
+                    {item.text}
+                  </p>
+                </div>
+
+                <div className="testimonial-meta mt-auto pt-[18px] flex flex-col items-start justify-end gap-1">
+                  <strong className="testimonial-name text-[15px] sm:text-[16px] leading-[1.1] font-semibold tracking-[0.1px] text-[#111] uppercase">
+                    {item.name}
+                  </strong>
+                  <span className="stars text-sm sm:text-[17px] leading-none tracking-[1px] text-[#4b504e] select-none" aria-label="5 dari 5 bintang">
+                    ★★★★★
+                  </span>
+                </div>
+              </div>
+            </article>
           ))}
         </div>
       </div>
 
       {/* Controls: Dots and Arrows */}
-      <div className="testimonial-controls flex items-center justify-between max-w-[720px] mx-auto mt-6 px-2">
-        <div className="testimonial-dots flex items-center gap-2">
+      <div className="testimonial-controls flex items-center justify-between mt-[34px]">
+        <div className="testimonial-dots flex items-center gap-1.5" aria-label="Indikator ulasan">
           {testimonials.map((_, i) => (
             <button
               key={i}
+              type="button"
               onClick={() => setCurrentIndex(i)}
               aria-label={`Tampilkan ulasan ${i + 1}`}
-              className={`h-2 rounded-full transition-all duration-300 ${
+              className={`h-[6px] border-0 p-0 rounded-full cursor-pointer transition-[width,background-color] duration-200 ${
                 i === currentIndex
-                  ? "w-7 bg-[#1b1e1d]"
-                  : "w-2 bg-[#d9dddb] hover:bg-[#bfc4c1]"
+                  ? "w-[26px] bg-[#1b1e1d]"
+                  : "w-[6px] bg-[#d9dddb] hover:bg-[#bfc4c1]"
               }`}
             />
           ))}
@@ -137,22 +177,24 @@ export default function TestimonialCarousel() {
 
         <div className="testimonial-arrows flex items-center gap-2.5">
           <button
+            type="button"
             onClick={handlePrev}
             aria-label="Ulasan sebelumnya"
-            className="w-10 h-10 rounded-xl border border-[#dfe4e2] bg-white text-[#1a1d1c] flex items-center justify-center hover:bg-neutral-50 hover:-translate-y-0.5 active:translate-y-0 transition-all shadow-sm"
+            className="testimonial-arrow w-[42px] h-[42px] border border-[#dfe4e2] rounded-[11px] bg-white text-[#1a1d1c] grid place-items-center cursor-pointer hover:border-[#bfc8c4] hover:bg-[#f7f9f8] hover:-translate-y-0.5 active:translate-y-0 transition-all"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none">
+              <path d="M15 5 8 12l7 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
 
           <button
+            type="button"
             onClick={handleNext}
             aria-label="Ulasan berikutnya"
-            className="w-10 h-10 rounded-xl border border-[#dfe4e2] bg-white text-[#1a1d1c] flex items-center justify-center hover:bg-neutral-50 hover:-translate-y-0.5 active:translate-y-0 transition-all shadow-sm"
+            className="testimonial-arrow w-[42px] h-[42px] border border-[#dfe4e2] rounded-[11px] bg-white text-[#1a1d1c] grid place-items-center cursor-pointer hover:border-[#bfc8c4] hover:bg-[#f7f9f8] hover:-translate-y-0.5 active:translate-y-0 transition-all"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+            <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none">
+              <path d="m9 5 7 7-7 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Navbar from "@/component/Navbar";
@@ -9,30 +9,37 @@ import TestimonialCarousel from "@/component/TestimonialCarousel";
 import GuideModal from "@/component/GuideModal";
 import AuthModal from "@/component/AuthModal";
 
-// Typewriter hook helper
-function useTypewriter(text: string, speed = 35, startDelay = 0) {
+// Typewriter hook supporting trigger, delay, and completion
+function useScrollTypewriter(
+  text: string,
+  speed = 35,
+  shouldStart = false
+) {
   const [displayText, setDisplayText] = useState("");
   const [isFinished, setIsFinished] = useState(false);
 
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
+    if (!shouldStart) return;
+
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) {
+      setDisplayText(text);
+      setIsFinished(true);
+      return;
+    }
+
     let i = 0;
+    const interval = setInterval(() => {
+      i++;
+      setDisplayText(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(interval);
+        setIsFinished(true);
+      }
+    }, speed);
 
-    const startTimer = setTimeout(() => {
-      const interval = setInterval(() => {
-        i++;
-        setDisplayText(text.slice(0, i));
-        if (i >= text.length) {
-          clearInterval(interval);
-          setIsFinished(true);
-        }
-      }, speed);
-
-      return () => clearInterval(interval);
-    }, startDelay);
-
-    return () => clearTimeout(startTimer);
-  }, [text, speed, startDelay]);
+    return () => clearInterval(interval);
+  }, [text, speed, shouldStart]);
 
   return { displayText, isFinished };
 }
@@ -42,11 +49,27 @@ export default function LandingPage() {
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signup");
   const [guideModalOpen, setGuideModalOpen] = useState(false);
 
-  // Video state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // Trigger states
+  const [heroStart] = useState(true);
+  const [heroRevealed, setHeroRevealed] = useState(false);
+  const [heroCursorVisible, setHeroCursorVisible] = useState(true);
 
-  // Tooltip state for marquee features
+  const [aiInView, setAiInView] = useState(false);
+  const [videoVisible, setVideoVisible] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const [practitionerInView, setPractitionerInView] = useState(false);
+  const [usersInView, setUsersInView] = useState(false);
+  const [closingInView, setClosingInView] = useState(false);
+
+  // Video element ref
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const aiSectionRef = useRef<HTMLElement>(null);
+  const practitionerSectionRef = useRef<HTMLElement>(null);
+  const usersSectionRef = useRef<HTMLElement>(null);
+  const closingSectionRef = useRef<HTMLElement>(null);
+
+  // Tooltip state for feature highlights
   const [activeTooltip, setActiveTooltip] = useState<{
     title: string;
     desc: string;
@@ -55,18 +78,109 @@ export default function LandingPage() {
     show: boolean;
   }>({ title: "", desc: "", x: 0, y: 0, show: false });
 
-  // Typewriter headlines
-  const heroType = useTypewriter(
+  // 1. Hero Typewriter
+  const heroType = useScrollTypewriter(
     "Nutrisi lebih tepat untuk ibu dan si kecil, langkah nyata cegah stunting",
-    35,
-    300
+    42,
+    heroStart
   );
 
-  const aiType = useTypewriter(
+  // On hero finish, reveal content and hide cursor after 2s
+  useEffect(() => {
+    if (heroType.isFinished) {
+      setHeroRevealed(true);
+      const timer = setTimeout(() => {
+        setHeroCursorVisible(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [heroType.isFinished]);
+
+  // 2. AI Section Typewriter
+  const aiType = useScrollTypewriter(
     "Dilengkapi asisten AI yang membantu memberikan rekomendasi nutrisi sesuai kondisi Anda.",
-    30,
-    500
+    32,
+    aiInView
   );
+
+  // Video appears and plays after AI typing finishes
+  useEffect(() => {
+    if (aiType.isFinished) {
+      setVideoVisible(true);
+      if (videoRef.current) {
+        videoRef.current.muted = true;
+        videoRef.current
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch(() => {});
+      }
+    }
+  }, [aiType.isFinished]);
+
+  // 3. Practitioner Typewriter
+  const practitionerType = useScrollTypewriter(
+    "Rekomendasi NutrimateAI didukung oleh perspektif praktisi kesehatan untuk membantu Anda mendapatkan informasi nutrisi yang lebih tepat dan terpercaya.",
+    28,
+    practitionerInView
+  );
+
+  // 4. Users Typewriter
+  const usersType = useScrollTypewriter(
+    "10ribu+ pengguna telah bergabung bersama NutrimateAI",
+    30,
+    usersInView
+  );
+
+  // 5. Closing CTA Typewriter
+  const closingType = useScrollTypewriter(
+    "Sekarang giliran Anda untuk memulai perjalanan gizi yang lebih tepat, demi tumbuh kembang si kecil!",
+    27,
+    closingInView
+  );
+
+  // Intersection Observers setup
+  useEffect(() => {
+    const observerOptions = { threshold: 0.3 };
+
+    const aiObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setAiInView(true);
+        aiObserver.disconnect();
+      }
+    }, { threshold: 0.35 });
+    if (aiSectionRef.current) aiObserver.observe(aiSectionRef.current);
+
+    const practitionerObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setPractitionerInView(true);
+        practitionerObserver.disconnect();
+      }
+    }, observerOptions);
+    if (practitionerSectionRef.current) practitionerObserver.observe(practitionerSectionRef.current);
+
+    const usersObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setUsersInView(true);
+        usersObserver.disconnect();
+      }
+    }, { threshold: 0.25 });
+    if (usersSectionRef.current) usersObserver.observe(usersSectionRef.current);
+
+    const closingObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setClosingInView(true);
+        closingObserver.disconnect();
+      }
+    }, { threshold: 0.35 });
+    if (closingSectionRef.current) closingObserver.observe(closingSectionRef.current);
+
+    return () => {
+      aiObserver.disconnect();
+      practitionerObserver.disconnect();
+      usersObserver.disconnect();
+      closingObserver.disconnect();
+    };
+  }, []);
 
   const handleOpenAuth = (mode: "signin" | "signup") => {
     setAuthMode(mode);
@@ -87,7 +201,7 @@ export default function LandingPage() {
     NutriCheck:
       "Membantu mengetahui kondisi ibu dan si kecil melalui riwayat kesehatan, ekonomi, lingkungan, dan kebutuhan lainnya.",
     NutriPlan:
-      "Menggunakan AI untuk memberikan rekomendasi makanan dan gizi harian sesuai kondisi ibu dan si kecil.",
+      "Menggunakan AI untuk memberikan rekomendasi makanan dan gizi sesuai kondisi ibu dan si kecil.",
     NutriDaily:
       "Mengirimkan pengingat nutrisi dan jadwal penting langsung melalui WhatsApp.",
     NutriHelp:
@@ -96,13 +210,55 @@ export default function LandingPage() {
       "Memungkinkan masyarakat memberikan donasi untuk membantu memenuhi kebutuhan gizi ibu dan anak.",
   };
 
+  const featureIcons: Record<string, React.ReactNode> = {
+    NutriCheck: (
+      <svg className="w-[21px] h-[21px]" viewBox="0 0 24 24" fill="none">
+        <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+        <path d="m16 16 4 4M11 7.5v7M7.5 11h7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+    NutriPlan: (
+      <svg className="w-[21px] h-[21px]" viewBox="0 0 24 24" fill="none">
+        <path d="M12 3.5v17M4.5 12h15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M6.5 7.2c1.8-2.3 5.2-2.9 7.7-1.2 2.4 1.6 3.3 4.7 1.8 7.2-1.4 2.4-4.3 3.4-6.8 2.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+    NutriDaily: (
+      <svg className="w-[21px] h-[21px]" viewBox="0 0 24 24" fill="none">
+        <rect x="5" y="3.5" width="14" height="17" rx="2" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M8 7h8M8 11h8M8 15h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+    NutriHelp: (
+      <svg className="w-[21px] h-[21px]" viewBox="0 0 24 24" fill="none">
+        <path d="M12 20s-7-4.1-7-9.5C5 7.7 6.7 6 9 6c1.4 0 2.4.7 3 1.8C12.6 6.7 13.6 6 15 6c2.3 0 4 1.7 4 4.5C19 15.9 12 20 12 20Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      </svg>
+    ),
+    NutriAssist: (
+      <svg className="w-[21px] h-[21px]" viewBox="0 0 24 24" fill="none">
+        <path d="M12 20V5M7 9l5-5 5 5M5 20h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  };
+
   const handleFeatureHover = (e: React.MouseEvent<HTMLDivElement>, name: string) => {
     const rect = e.currentTarget.getBoundingClientRect();
+    const popupWidth = Math.min(300, window.innerWidth - 24);
+    const popupHeight = 110;
+    const gap = 12;
+    const edge = 12;
+
+    let left = rect.left + rect.width / 2 - popupWidth / 2;
+    left = Math.max(edge, Math.min(left, window.innerWidth - popupWidth - edge));
+
+    let top = rect.top - popupHeight - gap;
+    if (top < edge) top = rect.bottom + gap;
+
     setActiveTooltip({
       title: name,
       desc: featureDescriptions[name] || "",
-      x: rect.left + rect.width / 2,
-      y: rect.top - 12,
+      x: left,
+      y: top,
       show: true,
     });
   };
@@ -115,34 +271,39 @@ export default function LandingPage() {
       {/* Main Content */}
       <main id="home" className="pt-[70px] sm:pt-[78px]">
         {/* ================= HERO SECTION ================= */}
-        <section className="hero min-h-[calc(100vh-78px)] bg-white overflow-hidden flex flex-col justify-between">
-          <div className="hero-top w-full max-w-[1080px] mx-auto px-4 pt-10 sm:pt-14 text-center">
+        <section className="hero bg-white overflow-hidden flex flex-col justify-between">
+          <div className="hero-top w-full max-w-[1080px] mx-auto px-4 pt-10 sm:pt-12 text-center flex flex-col items-center">
             {/* Trust badge */}
-            <div className="trust inline-flex items-center justify-center gap-2.5 text-sm sm:text-base font-medium text-neutral-800 bg-[#f4f7f5] px-4 py-1.5 rounded-full border border-neutral-200/80 mb-6 sm:mb-8">
+            <div className="trust inline-flex items-center justify-center gap-2 text-base sm:text-[19px] font-medium text-[#121517] mb-6 sm:mb-8">
               <Image
                 src="/logo-kemenkes.png"
                 alt="Logo Kementerian Kesehatan RI"
-                width={22}
-                height={22}
-                className="w-5 h-5 object-contain"
+                width={25}
+                height={25}
+                className="w-5 sm:w-[25px] h-5 sm:h-[25px] object-contain"
                 priority
               />
               <span>Diawasi oleh Kementerian Kesehatan RI</span>
             </div>
 
             {/* Headline Typewriter */}
-            <h1 className="hero-title text-3xl sm:text-5xl lg:text-[56px] font-medium leading-[1.12] tracking-tight text-[#121517] max-w-[920px] mx-auto min-h-[90px] sm:min-h-[130px]">
+            <h1 className="hero-title text-3xl sm:text-5xl lg:text-[56px] font-normal leading-[1.08] tracking-[-1.9px] text-[#121517] max-w-[900px] mx-auto min-h-[90px] sm:min-h-[125px]">
               {heroType.displayText}
-              {!heroType.isFinished && (
-                <span className="inline-block w-1 h-[0.9em] bg-[#05976A] ml-1.5 rounded-sm animate-pulse align-middle" />
+              {heroCursorVisible && (
+                <span className="type-cursor" aria-hidden="true" />
               )}
             </h1>
 
             {/* CTA Buttons */}
-            <div className="hero-cta flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-8 sm:mt-11 mb-10 sm:mb-14">
+            <div
+              className={`hero-cta reveal-after-hero flex flex-wrap items-center justify-center gap-3 mt-9 sm:mt-11 mb-10 sm:mb-14 ${
+                heroRevealed ? "is-visible" : ""
+              }`}
+            >
               <button
+                type="button"
                 onClick={() => handleOpenAuth("signup")}
-                className="btn btn-primary h-12 px-6 rounded-full inline-flex items-center justify-center gap-2.5 bg-[#05976A] text-white font-semibold hover:bg-[#047b57] hover:-translate-y-0.5 active:translate-y-0 transition-all shadow-[0_8px_22px_rgba(5,151,106,0.18)]"
+                className="btn btn-primary h-12 px-6 rounded-full inline-flex items-center justify-center gap-2 bg-[#05976A] text-white font-semibold hover:bg-[#07543f] hover:-translate-y-0.5 active:translate-y-0 transition-all shadow-[0_8px_22px_rgba(5,151,106,0.13)] cursor-pointer"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5h5a1.8 1.8 0 0 1 1.8 1.8v10.4A1.8 1.8 0 0 1 18 19h-5" />
@@ -152,8 +313,9 @@ export default function LandingPage() {
               </button>
 
               <button
+                type="button"
                 onClick={() => setGuideModalOpen(true)}
-                className="btn btn-secondary h-12 px-6 rounded-full inline-flex items-center justify-center gap-2 bg-[#E6F2EE] text-[#0b4436] font-semibold hover:bg-[#d8ece4] hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                className="btn btn-secondary h-12 px-6 rounded-full inline-flex items-center justify-center gap-2 bg-[#E6F2EE] text-[#0b4436] font-medium hover:bg-[#d5eee4] hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
               >
                 Panduan Penggunaan
               </button>
@@ -161,30 +323,35 @@ export default function LandingPage() {
           </div>
 
           {/* Feature Carousel */}
-          <FeatureCarousel />
+          <div className={`feature-area-wrap reveal-after-hero ${heroRevealed ? "is-visible" : ""}`}>
+            <FeatureCarousel />
+          </div>
         </section>
 
         {/* ================= FEATURE HIGHLIGHTS STRIP ================= */}
-        <section className="feature-highlights bg-white py-8 border-y border-neutral-100 overflow-hidden relative">
-          <p className="eyebrow text-center text-xs sm:text-sm font-bold tracking-[2.4px] text-[#7b8180] uppercase mb-6">
-            BERBAGAI FITUR UNGGULAN NUTRIMATEAI
+        <section className="feature-highlights bg-white py-8 sm:py-9 border-t border-[#f0f2f1] border-bottom border-[#edf0ef] overflow-hidden relative">
+          <p className="eyebrow text-center text-xs sm:text-[15px] font-semibold tracking-[2.4px] text-[#7b8180] uppercase mb-6">
+            BERBAGAI FITUR UNGGULAN
           </p>
 
-          <div className="highlight-window overflow-hidden w-full">
-            <div className="highlight-track flex w-max items-center animate-[marquee_25s_linear_infinite] hover:[animation-play-state:paused]">
+          <div
+            className="highlight-window overflow-hidden w-full"
+            onMouseLeave={() => setActiveTooltip((prev) => ({ ...prev, show: false }))}
+          >
+            <div className="highlight-track flex w-max items-center animate-[marquee_24s_linear_infinite] hover:[animation-play-state:paused]">
               {[...Array(2)].map((_, groupIdx) => (
-                <div key={groupIdx} className="flex items-center gap-12 sm:gap-16 pr-12 sm:pr-16">
+                <div key={groupIdx} className="highlight-group flex items-center gap-[35px] sm:gap-[58px] pr-[35px] sm:pr-[58px]">
                   {Object.keys(featureDescriptions).map((name) => (
                     <div
                       key={name}
                       onMouseEnter={(e) => handleFeatureHover(e, name)}
                       onMouseLeave={() => setActiveTooltip((prev) => ({ ...prev, show: false }))}
-                      className="highlight-item flex items-center gap-3 cursor-pointer text-neutral-500 hover:text-neutral-900 transition-colors"
+                      className="highlight-item flex items-center gap-3 cursor-pointer text-[#a4aaa8] hover:text-[#4e5653] hover:-translate-y-px transition-all min-w-[155px] sm:min-w-[190px] py-2"
                     >
-                      <span className="w-10 h-10 rounded-xl bg-[#f0f3f2] flex items-center justify-center text-[#05976A] border border-neutral-200/80 shrink-0 font-bold text-xs">
-                        {name.slice(0, 2)}
+                      <span className="highlight-icon w-9 sm:w-[42px] h-9 sm:h-[42px] rounded-[10px] sm:rounded-xl bg-[#f0f3f2] flex items-center justify-center text-[#05976A] border border-[#e1e6e4] shrink-0">
+                        {featureIcons[name]}
                       </span>
-                      <span className="text-base sm:text-lg font-bold tracking-tight whitespace-nowrap">
+                      <span className="highlight-name text-sm sm:text-[17px] font-semibold whitespace-nowrap text-inherit">
                         {name}
                       </span>
                     </div>
@@ -197,30 +364,47 @@ export default function LandingPage() {
           {/* Interactive Floating Tooltip */}
           {activeTooltip.show && (
             <div
-              className="fixed z-50 -translate-x-1/2 -translate-y-full w-[280px] p-4 bg-white rounded-2xl shadow-xl border border-neutral-100 pointer-events-none transition-all duration-200"
+              className="feature-popup fixed z-[9999] w-[min(300px,calc(100vw-24px))] p-[18px_20px_19px] bg-white rounded-[18px] border border-[#eef1ef] shadow-[0_16px_40px_rgba(18,21,23,0.12),0_2px_8px_rgba(18,21,23,0.05)] text-left pointer-events-none transition-all duration-200"
               style={{ left: activeTooltip.x, top: activeTooltip.y }}
             >
-              <h4 className="text-sm font-bold text-neutral-900 mb-1">{activeTooltip.title}</h4>
-              <p className="text-xs text-neutral-600 leading-relaxed">{activeTooltip.desc}</p>
+              <h3 className="feature-popup-title text-base font-bold text-[#1a1d1c] mb-1.5 leading-[1.3] tracking-tight">
+                {activeTooltip.title}
+              </h3>
+              <p className="feature-popup-desc text-[13.5px] text-[#7b8180] leading-[1.55] m-0 font-normal">
+                {activeTooltip.desc}
+              </p>
             </div>
           )}
         </section>
 
         {/* ================= ASISTEN AI SECTION ================= */}
-        <section id="asisten-ai" className="ai-section py-20 sm:py-28 bg-white">
-          <div className="container w-[calc(100%-32px)] max-w-[1140px] mx-auto">
-            <h2 className="section-title text-3xl sm:text-4xl lg:text-[45px] font-medium leading-[1.18] tracking-tight max-w-[820px] mb-10 sm:mb-14">
+        <section
+          id="asisten-ai"
+          ref={aiSectionRef}
+          className="ai-section py-20 sm:py-28 bg-white"
+        >
+          <div className="container w-[min(calc(100%-32px),1240px)] mx-auto">
+            <h2 className="section-title text-3xl sm:text-4xl lg:text-[45px] font-medium leading-[1.14] tracking-[-1.5px] max-w-[800px] mb-10 sm:mb-14">
               {aiType.displayText}
+              {!aiType.isFinished && (
+                <span className="type-cursor" aria-hidden="true" />
+              )}
             </h2>
 
-            {/* Video Player Box */}
-            <div className="video-wrap relative w-full aspect-video rounded-2xl sm:rounded-3xl overflow-hidden border-2 sm:border-4 border-[#d2d5d4] bg-[#f4f5f4] shadow-md group">
+            {/* Video Player Box with scroll fade-in */}
+            <div
+              className={`video-wrap relative w-full aspect-video rounded-2xl sm:rounded-3xl overflow-hidden border-2 sm:border-4 border-[#d2d5d4] bg-[#f4f5f4] shadow-md group transition-all duration-700 ${
+                videoVisible
+                  ? "opacity-100 translate-y-0 pointer-events-auto"
+                  : "opacity-0 translate-y-8 pointer-events-none"
+              }`}
+            >
               <video
                 ref={videoRef}
                 playsInline
                 loop
                 muted
-                preload="metadata"
+                preload="none"
                 className="w-full h-full object-cover"
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
@@ -232,22 +416,22 @@ export default function LandingPage() {
               {/* Center Play / Pause button overlay */}
               <div
                 onClick={toggleVideo}
-                className="absolute inset-0 flex items-center justify-center bg-black/15 cursor-pointer"
+                className="absolute inset-0 flex items-center justify-center bg-black/10 cursor-pointer"
               >
                 <button
                   type="button"
                   aria-label={isPlaying ? "Jeda video" : "Putar video"}
-                  className={`w-14 sm:w-16 h-14 sm:h-16 rounded-full bg-black/80 hover:bg-black text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 ${
+                  className={`w-13 sm:w-14 h-13 sm:h-14 rounded-full bg-black/80 hover:bg-black text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 cursor-pointer ${
                     isPlaying ? "opacity-0 group-hover:opacity-100" : "opacity-100"
                   }`}
                 >
                   {isPlaying ? (
                     <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                      <path d="M7.5 5.5h3v13h-3zM13.5 5.5h3v13h-3z" />
                     </svg>
                   ) : (
                     <svg className="w-6 h-6 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
+                      <path d="M8.5 5.7v12.6c0 .7.8 1.1 1.4.7l9-6.3c.5-.4.5-1.1 0-1.4l-9-6.3c-.6-.4-1.4 0-1.4.7Z" />
                     </svg>
                   )}
                 </button>
@@ -257,69 +441,53 @@ export default function LandingPage() {
         </section>
 
         {/* ================= PRAKTISI SECTION ================= */}
-        <section id="praktisi" className="practitioner-section py-20 sm:py-28 bg-[#E6F2EE]">
-          <div className="container w-[calc(100%-32px)] max-w-[1140px] mx-auto">
-            <div className="practitioner-grid grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+        <section
+          id="praktisi"
+          ref={practitionerSectionRef}
+          className="practitioner-section py-20 sm:py-28 bg-[#E6F2EE]"
+        >
+          <div className="container w-[min(calc(100%-32px),1240px)] mx-auto">
+            <div className="practitioner-grid grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-20 items-center">
               {/* Copy */}
               <div className="practitioner-copy">
-                <h2 className="section-title text-3xl sm:text-4xl lg:text-[45px] font-medium leading-[1.18] tracking-tight text-[#121517] mb-6">
-                  Rekomendasi didukung perspektif praktisi kesehatan
+                <h2 className="section-title text-3xl sm:text-4xl lg:text-[45px] font-medium leading-[1.14] tracking-[-1.5px] text-[#121517] mb-6">
+                  Didukung oleh praktisi
+                  <br />
+                  kesehatan Indonesia
                 </h2>
-                <p className="subheadline text-base sm:text-lg text-[#46484E] leading-relaxed mb-6">
-                  Rekomendasi NutrimateAI diselaraskan dengan pedoman gizi resmi dan pandangan praktisi
-                  kesehatan untuk membantu Anda memperoleh asupan yang lebih tepat, aman, dan dapat dipercaya.
+                <p className="subheadline text-base sm:text-lg text-[#46484E] leading-[1.55] max-w-[500px] min-h-[84px] mt-6">
+                  {practitionerType.displayText}
+                  {!practitionerType.isFinished && (
+                    <span className="type-cursor practitioner-cursor" aria-hidden="true" />
+                  )}
                 </p>
-                <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#07543f] bg-white px-3.5 py-1.5 rounded-full border border-emerald-200 shadow-sm">
-                  <Image
-                    src="/verify_praktisi.png"
-                    alt="Terverifikasi"
-                    width={18}
-                    height={18}
-                    className="w-4 h-4 object-contain"
-                  />
-                  <span>Standar Rekomendasi Gizi Seimbang Kemenkes RI</span>
-                </div>
               </div>
 
-              {/* Cards List */}
-              <div className="practitioner-list flex flex-col gap-3.5">
+              {/* Practitioner List Cards */}
+              <div className="practitioner-list flex flex-col gap-3">
                 {[
-                  {
-                    name: "Dokter Spesialis Gizi Klinik (Sp.GK)",
-                    desc: "Verifikasi standar gizi makro & mikro ibu dan balita",
-                  },
-                  {
-                    name: "Bidan Praktik Mandiri & Kader KIA",
-                    desc: "Pendampingan buku KIA dan pemantauan berat badan",
-                  },
-                  {
-                    name: "Nutrisionis & Ahli Diet Puskesmas",
-                    desc: "Penyesuaian bahan pangan lokal berbiaya terjangkau",
-                  },
-                ].map((item, i) => (
-                  <div
+                  "Ahli Gizi & Nutrisi",
+                  "Spesialis Obstetri & Ginekologi",
+                  "Ahli Kesehatan Masyarakat",
+                ].map((title, i) => (
+                  <article
                     key={i}
-                    className="practitioner-card min-h-[76px] bg-white border border-[#d6ddda] rounded-2xl p-4 flex items-center gap-4 shadow-sm"
+                    className="practitioner-card min-h-[70px] sm:min-h-[76px] bg-white border border-[#d6ddda] rounded-[13px] p-[10px_17px_10px_12px] flex items-center gap-[15px] shadow-[0_2px_7px_rgba(0,0,0,0.025)]"
                   >
-                    <div className="person-icon w-12 h-12 rounded-xl bg-[#004e3b] text-white flex items-center justify-center shrink-0">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    <div className="person-icon w-[45px] sm:w-[48px] h-[45px] sm:h-[48px] rounded-[9px] bg-[#004e3b] text-white flex items-center justify-center shrink-0">
+                      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="8" r="3" stroke="currentColor" strokeWidth="1.6" />
+                        <path d="M5.5 20c.7-3.2 2.9-5 6.5-5s5.8 1.8 6.5 5M17.5 7.5h3m-1.5-1.5v3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                       </svg>
                     </div>
-                    <div className="flex-1">
-                      <h4 className="person-name text-sm sm:text-base font-semibold text-[#121517]">
-                        {item.name}
-                      </h4>
-                      <p className="text-xs text-[#707773] mt-0.5">{item.desc}</p>
-                    </div>
-                    <Image
-                      src="/verify_praktisi.png"
-                      alt="Verified"
-                      width={22}
-                      height={22}
-                      className="w-5 h-5 object-contain shrink-0"
-                    />
-                  </div>
+                    <span className="person-name text-[15px] sm:text-[17px] font-semibold text-[#121517] flex-1">
+                      {title}
+                    </span>
+                    <svg className="verified w-5 sm:w-6 h-5 sm:h-6 text-[#05976A] shrink-0" viewBox="0 0 24 24" fill="none" aria-label="Terverifikasi">
+                      <path d="M12 3.1 18.8 6v5.1c0 4.2-2.7 7.5-6.8 9.3-4.1-1.8-6.8-5.1-6.8-9.3V6L12 3.1Z" fill="currentColor" />
+                      <path d="m8.7 12 2.1 2.1 4.5-4.6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </article>
                 ))}
               </div>
             </div>
@@ -327,14 +495,24 @@ export default function LandingPage() {
         </section>
 
         {/* ================= USERS & TESTIMONIALS ================= */}
-        <section id="pengguna" className="users-section py-20 sm:py-28 bg-white overflow-hidden">
-          <div className="container w-[calc(100%-32px)] max-w-[1140px] mx-auto">
-            <div className="users-heading flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-              <h2 className="users-title text-3xl sm:text-4xl lg:text-[45px] font-medium leading-[1.18] tracking-tight text-[#121517] max-w-[620px]">
-                10ribu+ pengguna telah bergabung bersama NutrimateAI
+        <section
+          id="pengguna"
+          ref={usersSectionRef}
+          className="users-section pt-20 sm:pt-28 bg-white overflow-hidden scroll-mt-20"
+        >
+          <div className="container w-[min(calc(100%-32px),1240px)] mx-auto">
+            <div className="users-heading grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-[70px] items-end mb-10 sm:mb-12">
+              <h2 className="users-title text-3xl sm:text-4xl lg:text-[45px] font-medium leading-[1.14] tracking-[-1.5px] text-[#121517] max-w-[590px] min-h-[90px] sm:min-h-[103px]">
+                {usersType.displayText}
+                {!usersType.isFinished && (
+                  <span className="type-cursor" aria-hidden="true" />
+                )}
               </h2>
-              <p className="text-sm sm:text-base text-[#666d6a]">
-                Simak pengalaman nyata para ibu yang terbantu menjaga asupan gizi keluarga tercinta.
+              <p className="users-subtitle flex items-center gap-4 text-base sm:text-lg text-[#666d6a] md:justify-self-end mb-2">
+                Ini kata mereka
+                <svg className="w-5 sm:w-[21px] h-5 sm:h-[21px] text-[#05976A]" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 5v14M6.5 13.5 12 19l5.5-5.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </p>
             </div>
 
@@ -343,157 +521,150 @@ export default function LandingPage() {
         </section>
 
         {/* ================= CLOSING CTA SECTION ================= */}
-        <section className="closing-section py-24 sm:py-36 bg-gradient-to-b from-white to-[#F2F8F6] text-center px-4">
-          <div className="max-w-[900px] mx-auto">
-            <h2 className="closing-title text-3xl sm:text-4xl lg:text-[46px] font-medium leading-[1.2] tracking-tight text-[#121517] mb-8">
+        <section
+          ref={closingSectionRef}
+          className="closing-section py-28 sm:py-[150px] px-5 sm:px-6 bg-white text-center"
+        >
+          <h2 className="closing-title relative mx-auto max-w-[1050px] text-3xl sm:text-4xl lg:text-[45px] font-medium leading-[1.14] tracking-[-1.5px] text-[#121517]">
+            {/* Ghost text for layout height preservation */}
+            <span className="closing-ghost invisible" aria-hidden="true">
               Sekarang giliran Anda untuk memulai perjalanan gizi yang lebih tepat, demi tumbuh kembang si kecil!
-            </h2>
-
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <button
-                onClick={() => handleOpenAuth("signup")}
-                className="h-12 px-8 rounded-full bg-[#05976A] text-white font-semibold hover:bg-[#047b57] hover:-translate-y-0.5 active:translate-y-0 transition-all shadow-[0_10px_26px_rgba(5,151,106,0.22)]"
-              >
-                Mulai Sekarang Gratis
-              </button>
-
-              <Link
-                href="/hubungi-kami"
-                className="h-12 px-7 rounded-full bg-white border border-neutral-300 text-neutral-800 font-semibold hover:bg-neutral-50 hover:-translate-y-0.5 active:translate-y-0 transition-all inline-flex items-center"
-              >
-                Hubungi Tim Kami
-              </Link>
-            </div>
-          </div>
+              <span className="type-cursor" />
+            </span>
+            {/* Live animated typewriter */}
+            <span className="closing-live absolute left-0 right-0 top-0">
+              {closingType.displayText}
+              {!closingType.isFinished && (
+                <span className="type-cursor" aria-hidden="true" />
+              )}
+            </span>
+          </h2>
         </section>
       </main>
 
       {/* ================= SITE FOOTER ================= */}
-      <footer className="site-footer border-t border-[#ecefed] bg-white pt-16 pb-8 overflow-hidden">
-        <div className="container w-[calc(100%-32px)] max-w-[1140px] mx-auto">
+      <footer className="site-footer border-t border-[#ecefed] bg-white pt-6 overflow-hidden">
+        <div className="container w-[min(calc(100%-32px),1240px)] mx-auto">
           {/* Top Columns */}
-          <div className="footer-top grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr] gap-10 sm:gap-12 pb-12">
+          <div className="footer-top grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr] gap-8 sm:gap-[55px] items-start pb-10 sm:pb-[50px]">
             <div>
-              <Link href="/#home" className="inline-block mb-4">
-                <Image
-                  src="/logo-NutrimateAI-fix.svg"
-                  alt="NutrimateAI"
-                  width={150}
-                  height={34}
-                  className="w-[145px] h-auto object-contain"
-                />
-              </Link>
-              <p className="footer-muted text-xs text-[#707773] leading-relaxed mb-4 max-w-[300px]">
-                Platform pendamping nutrisi ibu hamil dan ibu balita berbasis rekomendasi cerdas dan
-                dukungan gotong royong gizi.
-              </p>
+              <div className="footer-label text-[13px] font-semibold mb-3.5 text-[#202422]">
+                Hubungi kami
+              </div>
+              <div className="footer-muted text-xs text-[#a0a6a3] leading-[1.45] mb-2">
+                Butuh bantuan atau ingin berkolaborasi
+                <br />
+                bersama NutrimateAI?
+              </div>
               <Link
                 href="/hubungi-kami"
-                className="footer-contact inline-flex items-center gap-2.5 px-3.5 py-2 border border-[#dce9e4] bg-[#f3faf7] rounded-xl text-xs font-semibold text-[#07543f] hover:bg-[#e4f3ee] transition-colors"
+                className="footer-contact inline-flex items-center gap-2.5 mt-2 p-[10px_13px] border border-[#dce9e4] bg-[#f3faf7] rounded-[10px] text-xs text-[#3f4845] hover:bg-[#e6f4ef] transition-colors"
               >
-                <span className="w-6 h-6 rounded-full bg-[#05976A] text-white flex items-center justify-center font-bold text-xs">
-                  ✉
+                <span className="footer-contact-icon w-[27px] h-[27px] rounded-full bg-[#05976A] text-white grid place-items-center shrink-0">
+                  <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 11.2 19.2 4.7c.9-.38 1.75.48 1.37 1.37L14.1 21.3c-.36.84-1.57.79-1.86-.08l-2.1-6.28-6.28-2.1C2.99 12.55 2.95 11.55 4 11.2Z" fill="currentColor" />
+                    <path d="m10.2 14.8 5.9-5.9" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
                 </span>
-                <span>Hubungi Kami</span>
+                <span>
+                  Hubungi Kami
+                  <br />
+                  <small className="text-[#8e9592]">Kirim pesan langsung melalui website</small>
+                </span>
               </Link>
             </div>
 
             {/* Col 2 */}
             <div className="footer-col">
-              <h4 className="footer-label text-xs font-bold text-[#202422] uppercase tracking-wider mb-3">
-                Fitur Nutrisi
-              </h4>
-              <ul className="space-y-2 text-xs text-[#707773]">
-                <li>
-                  <Link href="/#asisten-ai" className="hover:text-[#05976A] transition-colors">
-                    NutriCheck (Asesmen)
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#asisten-ai" className="hover:text-[#05976A] transition-colors">
-                    NutriPlan (Menu 30 Hari)
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#asisten-ai" className="hover:text-[#05976A] transition-colors">
-                    NutriDaily (Pengingat WA)
-                  </Link>
-                </li>
-              </ul>
+              <div className="footer-label text-[13px] font-semibold mb-3.5 text-[#202422]">
+                Fitur
+              </div>
+              <div className="space-y-3 text-xs text-[#969d9a]">
+                <Link href="/#home" className="block hover:text-[#05976A] transition-colors">
+                  Beranda
+                </Link>
+                <Link href="/#asisten-ai" className="block hover:text-[#05976A] transition-colors">
+                  Asisten AI
+                </Link>
+                <Link href="/#praktisi" className="block hover:text-[#05976A] transition-colors">
+                  Praktisi
+                </Link>
+                <Link href="/#pengguna" className="block hover:text-[#05976A] transition-colors">
+                  Pengguna
+                </Link>
+              </div>
             </div>
 
             {/* Col 3 */}
             <div className="footer-col">
-              <h4 className="footer-label text-xs font-bold text-[#202422] uppercase tracking-wider mb-3">
-                Bantuan Sosial
-              </h4>
-              <ul className="space-y-2 text-xs text-[#707773]">
-                <li>
-                  <Link href="/#asisten-ai" className="hover:text-[#05976A] transition-colors">
-                    NutriHelp (Ajukan Bantuan)
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#asisten-ai" className="hover:text-[#05976A] transition-colors">
-                    NutriAssist (Donasi Gizi)
-                  </Link>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setGuideModalOpen(true)}
-                    className="text-left hover:text-[#05976A] transition-colors"
-                  >
-                    Panduan Penggunaan
-                  </button>
-                </li>
-              </ul>
+              <div className="footer-label text-[13px] font-semibold mb-3.5 text-[#202422]">
+                Jelajahi
+              </div>
+              <div className="space-y-3 text-xs text-[#969d9a]">
+                <Link href="/#home" className="block hover:text-[#05976A] transition-colors">
+                  Tentang NutrimateAI
+                </Link>
+                <Link href="/#asisten-ai" className="block hover:text-[#05976A] transition-colors">
+                  Rekomendasi Nutrisi
+                </Link>
+                <Link href="/#pengguna" className="block hover:text-[#05976A] transition-colors">
+                  Ulasan Pengguna
+                </Link>
+                <Link href="/hubungi-kami" className="block hover:text-[#05976A] transition-colors">
+                  Hubungi Kami
+                </Link>
+              </div>
             </div>
 
             {/* Col 4 */}
             <div className="footer-col">
-              <h4 className="footer-label text-xs font-bold text-[#202422] uppercase tracking-wider mb-3">
-                Informasi & Legal
-              </h4>
-              <ul className="space-y-2 text-xs text-[#707773]">
-                <li>
-                  <Link href="/hubungi-kami" className="hover:text-[#05976A] transition-colors">
-                    Pusat Bantuan
-                  </Link>
-                </li>
-                <li>
-                  <span className="text-neutral-400">Pencegahan Stunting (1000 HPK)</span>
-                </li>
-                <li>
-                  <span className="text-neutral-400">Kebijakan Privasi</span>
-                </li>
-              </ul>
+              <div className="footer-label text-[13px] font-semibold mb-3.5 text-[#202422]">
+                Bantuan
+              </div>
+              <div className="space-y-3 text-xs text-[#969d9a]">
+                <span className="block cursor-pointer hover:text-[#05976A] transition-colors">
+                  FAQ
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setGuideModalOpen(true)}
+                  className="block text-left hover:text-[#05976A] transition-colors"
+                >
+                  Panduan
+                </button>
+                <span className="block cursor-pointer hover:text-[#05976A] transition-colors">
+                  Kebijakan Privasi
+                </span>
+                <span className="block cursor-pointer hover:text-[#05976A] transition-colors">
+                  Syarat Penggunaan
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Large Watermark */}
-          <div className="footer-brand select-none text-[clamp(45px,12vw,140px)] font-bold text-neutral-100 leading-none tracking-tighter text-center my-4 overflow-hidden">
-            NutriMate AI
+          {/* Large Brand Watermark */}
+          <div
+            className="footer-brand select-none text-[clamp(50px,16vw,220px)] leading-[0.68] sm:leading-[0.68] font-medium tracking-[-0.075em] text-[#eef0ef] whitespace-nowrap -translate-x-1 overflow-hidden"
+            aria-hidden="true"
+          >
+            NutrimateAI
           </div>
 
           {/* Bottom Bar */}
-          <div className="footer-bottom pt-6 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#8e9592]">
-            <p>© 2026 NutriMate AI. Seluruh Hak Cipta Dilindungi.</p>
-            <div className="flex items-center gap-4">
-              <span>Platform Edukasi & Rekomendasi Gizi Mandiri</span>
+          <div className="footer-bottom py-4 border-t border-[#f0f2f1] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-[#8e9592]">
+            <span>© 2026 NutrimateAI. All rights reserved.</span>
+            <div className="footer-legal flex gap-4 sm:gap-5 flex-wrap">
+              <span className="cursor-pointer hover:text-[#555b58] transition-colors">Terms of Service</span>
+              <span className="cursor-pointer hover:text-[#555b58] transition-colors">Privacy Policy</span>
+              <span className="cursor-pointer hover:text-[#555b58] transition-colors">Cookie Policy</span>
             </div>
           </div>
         </div>
       </footer>
 
-      {/* Interactive Guide Modal */}
+      {/* Modals */}
       <GuideModal isOpen={guideModalOpen} onClose={() => setGuideModalOpen(false)} />
-
-      {/* Interactive Auth Modal */}
-      <AuthModal
-        isOpen={authModalOpen}
-        initialMode={authMode}
-        onClose={() => setAuthModalOpen(false)}
-      />
+      <AuthModal isOpen={authModalOpen} initialMode={authMode} onClose={() => setAuthModalOpen(false)} />
     </div>
   );
 }

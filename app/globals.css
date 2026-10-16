@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,300..700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,400..700&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -22,21 +22,21 @@ html {
   scroll-behavior: smooth;
 }
 
+html, body, button, input, select, textarea {
+  font-family: "Google Sans Flex", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-optical-sizing: auto;
+}
+
 body {
   margin: 0;
   background: #ffffff;
   color: var(--text);
-  font-family: "Google Sans Flex", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 a {
   text-decoration: none;
   color: inherit;
-}
-
-button, input, select, textarea {
-  font-family: inherit;
 }
 
 @keyframes marquee {
@@ -47,3 +47,71 @@ button, input, select, textarea {
     transform: translateX(-50%);
   }
 }
+
+/* Landing Page Reference Animations & Types */
+.reveal-after-hero {
+  opacity: 0;
+  transform: translateY(28px);
+  pointer-events: none;
+}
+.reveal-after-hero.is-visible {
+  animation: fadeUp 0.8s cubic-bezier(0.2, 0.75, 0.2, 1) forwards;
+  pointer-events: auto;
+}
+@keyframes fadeUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.type-cursor {
+  display: inline-block;
+  position: relative;
+  width: 4px;
+  height: 0.9em;
+  margin-left: 5px;
+  vertical-align: -0.04em;
+  background: var(--green);
+  border-radius: 3px;
+  animation: blink 1s steps(1, end) infinite;
+}
+.type-cursor::after {
+  content: "";
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--green);
+  left: 50%;
+  bottom: -8px;
+  transform: translateX(-50%);
+}
+.practitioner-cursor {
+  width: 2px;
+  height: 0.88em;
+  margin-left: 4px;
+  border-radius: 2px;
+}
+.practitioner-cursor::after {
+  width: 6px;
+  height: 6px;
+  bottom: -6px;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

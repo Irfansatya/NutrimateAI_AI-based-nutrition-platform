@@ -17,6 +17,7 @@
 .db-root * { box-sizing: border-box; margin: 0; }
 .db-root {
   font-family: 'Google Sans Flex', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-optical-sizing: auto;
   color: var(--t);
   background: #fff;
   font-size: 15px;

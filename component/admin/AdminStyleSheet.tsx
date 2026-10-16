@@ -26,6 +26,7 @@ export default function AdminStyleSheet() {
       body {
         font-family: 'Google Sans Flex', 'Google Sans', system-ui, -apple-system,
           'Segoe UI', sans-serif;
+        font-optical-sizing: auto;
         color: var(--t);
         background: #fff;
         font-size: 15px;
