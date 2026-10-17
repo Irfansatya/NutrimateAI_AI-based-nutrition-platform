@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description:
     "NutriMate AI adalah platform pendamping nutrisi berbasis AI untuk ibu hamil dan ibu dengan anak berusia di bawah 2 tahun, dilengkapi rekomendasi bahan pangan dan sistem bantuan donasi.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/icon.png",
   },
 };
 

@@ -49,9 +49,10 @@ interface ProfileModalProps {
   user: typeof MOCK_USER;
   onUserChange: (u: typeof MOCK_USER) => void;
   onToast: (msg: string) => void;
+  onLogout?: () => void;
 }
 
-export function ProfileModal({ onClose, user, onUserChange, onToast }: ProfileModalProps) {
+export function ProfileModal({ onClose, user, onUserChange, onToast, onLogout }: ProfileModalProps) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState({ name: user.name, phone: user.phone, photo: user.photo });
   const [err, setErr] = React.useState("");
@@ -127,7 +128,19 @@ export function ProfileModal({ onClose, user, onUserChange, onToast }: ProfileMo
                 <div><small>Nomor WhatsApp</small><b>{user.phone}</b></div>
               </div>
               <div className="db-profile-actions">
-                <button className="db-btn danger" onClick={() => { onClose(); onToast("Logout pada prototipe lokal. Hubungkan autentikasi untuk mengakhiri sesi akun."); }}>Logout</button>
+                <button
+                  className="db-btn danger"
+                  onClick={() => {
+                    onClose();
+                    if (onLogout) {
+                      onLogout();
+                    } else {
+                      onToast("Logout berhasil.");
+                    }
+                  }}
+                >
+                  Logout
+                </button>
                 <button className="db-btn o" onClick={onClose}>Tutup</button>
                 <button className="db-btn" onClick={() => { setDraft({ name: user.name, phone: user.phone, photo: user.photo }); setEditing(true); }}>
                   <SvgIcon name="pen" className="db-ic" />Edit profil

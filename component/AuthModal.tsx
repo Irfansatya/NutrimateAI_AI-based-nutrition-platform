@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { registerUser, authenticateUser, saveUserSession } from "@/lib/user/session";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -13,6 +15,7 @@ export default function AuthModal({
   initialMode = "signup",
   onClose,
 }: AuthModalProps) {
+  const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -105,16 +108,29 @@ export default function AuthModal({
     }
 
     setIsLoading(true);
+
+    const regResult = registerUser({
+      name,
+      email,
+      phone: whatsapp,
+      password,
+    });
+
+    if (!regResult.success) {
+      setIsLoading(false);
+      showToastMsg(regResult.error || "Gagal melakukan pendaftaran akun.", true);
+      return;
+    }
+
     showToastMsg("Memproses pendaftaran akun...");
 
     setTimeout(() => {
       setIsLoading(false);
-      showToastMsg(
-        "Pendaftaran berhasil! Akun disiapkan (Integrasi database server akan aktif di Fase 4)."
-      );
+      showToastMsg("Pendaftaran berhasil! Silakan masuk dengan akun Anda.");
       setSigninEmail(email);
+      setSigninPassword("");
       setMode("signin");
-    }, 2400);
+    }, 1200);
   };
 
   const handleSigninSubmit = (e: React.FormEvent) => {
@@ -130,15 +146,25 @@ export default function AuthModal({
     }
 
     setIsLoading(true);
+
+    const authResult = authenticateUser(signinEmail, signinPassword);
+
+    if (!authResult.success || !authResult.user) {
+      setIsLoading(false);
+      showToastMsg(authResult.error || "Email atau kata sandi tidak cocok.", true);
+      return;
+    }
+
+    saveUserSession(authResult.user.id);
+
     setTimeout(() => {
       setIsLoading(false);
-      showToastMsg(
-        "Berhasil masuk! Selamat datang di NutriMate AI (Simulasi frontend; sesi backend aktif di Fase 4)."
-      );
+      showToastMsg("Berhasil masuk! Selamat datang di NutriMate AI.");
       setTimeout(() => {
         onClose();
-      }, 1500);
-    }, 1200);
+        router.push("/dashboard");
+      }, 700);
+    }, 800);
   };
 
   return (

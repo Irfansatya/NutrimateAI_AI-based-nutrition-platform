@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import "./dashboard.css";
 
 import { SvgIcon } from "@/component/dashboard/SvgIcon";
@@ -12,6 +13,7 @@ import NutriPlan from "@/component/dashboard/NutriPlan";
 import NutriHelp from "@/component/dashboard/NutriHelp";
 import NutriAssist from "@/component/dashboard/NutriAssist";
 import NutriWallet from "@/component/dashboard/NutriWallet";
+import { getCurrentUser, clearUserSession } from "@/lib/user/session";
 
 import {
   MOCK_USER,
@@ -22,11 +24,76 @@ import {
 } from "@/lib/dashboard/mockData";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>("check");
   const [user, setUser] = useState(MOCK_USER);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
+  useEffect(() => {
+    const active = getCurrentUser();
+    if (!active) {
+      router.replace("/");
+      return;
+    }
+    setUser({
+      name: active.name,
+      email: active.email,
+      phone: active.phone,
+      role: active.role,
+      photo: active.photo || null,
+    });
+    setIsAuthorized(true);
+  }, [router]);
+
+  const handleLogout = () => {
+    clearUserSession();
+    router.replace("/");
+  };
+
+  // Typewriter subheadline
+  const SUBS = [
+    "Kenali kebutuhan gizi keluarga dengan rekomendasi yang personal.",
+    "Pantau perkembangan Bunda dan si kecil setiap bulan dengan lebih mudah.",
+  ];
+  const longestSub = SUBS.reduce((a, b) => b.length > a.length ? b : a);
+  const [liveText, setLiveText] = useState("");
+  const [typing, setTyping] = useState(false);
+  const twRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let n = 0;
+    function run() {
+      const text = SUBS[n++ % SUBS.length];
+      if (prefersReduced) {
+        setLiveText(text);
+        twRef.current = setTimeout(run, 6000);
+        return;
+      }
+      setTyping(true);
+      let k = 0;
+      function step() {
+        k++;
+        setLiveText(text.slice(0, k));
+        if (k < text.length) {
+          twRef.current = setTimeout(step, 34);
+        } else {
+          twRef.current = setTimeout(() => {
+            setLiveText("");
+            setTyping(false);
+            twRef.current = setTimeout(run, 450);
+          }, 5000);
+        }
+      }
+      twRef.current = setTimeout(step, n === 1 ? 500 : 0);
+    }
+    run();
+    return () => { if (twRef.current) clearTimeout(twRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // NutriCheck state
   const [cat, setCat] = useState<Cat>("hamil");
@@ -74,6 +141,10 @@ export default function DashboardPage() {
     month: "long",
     year: "numeric",
   });
+
+  if (!isAuthorized) {
+    return null;
+  }
 
   return (
     <div className="db-root">
@@ -124,35 +195,31 @@ export default function DashboardPage() {
           <div className="db-hero-main">
             <div className="db-hero-copy">
               <h1>Halo, Bunda {user.name.split(" ")[0]}</h1>
-              <p className="db-hero-sub">
-                Mari pantau dan penuhi kebutuhan nutrisi keluarga bersama NutriMate AI.
+              <p className="db-hero-sub" aria-label={SUBS[0]}>
+                <span className="db-tw-ghost" aria-hidden="true">{longestSub}</span>
+                <span className={`db-tw-live${typing ? " typing" : ""}`} aria-hidden="true">{liveText}</span>
               </p>
             </div>
           </div>
 
           <div className="db-hero-bottom">
             <nav className="db-hero-nav" aria-label="Navigasi dashboard">
-              {NAV_ITEMS.map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={activeTab === id ? "on" : ""}
-                  onClick={() => setActiveTab(id)}
-                >
-                  <SvgIcon
-                    name={
-                      id === "check"
-                        ? "chk"
-                        : id === "plan"
-                        ? "cal"
-                        : id === "help"
-                        ? "heart"
-                        : "asst"
-                    }
-                  />
-                  <span>{label}</span>
-                </button>
-              ))}
+              {NAV_ITEMS.map(([id, label]) => {
+                const iconMap: Record<string, string> = {
+                  check: "chk", plan: "cal", help: "heart", assist: "asst",
+                };
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className={activeTab === id ? "on" : ""}
+                    onClick={() => setActiveTab(id)}
+                  >
+                    <SvgIcon name={iconMap[id] ?? "chk"} />
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
               <button
                 type="button"
                 className={activeTab === "wallet" ? "on" : ""}
@@ -239,6 +306,7 @@ export default function DashboardPage() {
           onUserChange={setUser}
           onClose={() => setShowProfile(false)}
           onToast={handleToast}
+          onLogout={handleLogout}
         />
       )}
 
