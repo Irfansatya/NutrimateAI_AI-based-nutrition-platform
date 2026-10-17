@@ -6,27 +6,27 @@ import Image from "next/image";
 const testimonials = [
   {
     name: "Rina Pratiwi",
-    photo: "https://i.pravatar.cc/500?img=47",
+    photo: "/GambarPengguna1.png",
     text: "NutrimateAI membantu saya lebih memahami kebutuhan gizi selama mendampingi tumbuh kembang si kecil.",
   },
   {
     name: "Dinda Lestari",
-    photo: "https://i.pravatar.cc/500?img=32",
+    photo: "/GambarPengguna2.png",
     text: "Rekomendasi makanannya terasa lebih relevan karena disesuaikan dengan kondisi dan kebutuhan saya.",
   },
   {
     name: "Ayu Maharani",
-    photo: "https://i.pravatar.cc/500?img=12",
+    photo: "/GambarPengguna3.png",
     text: "Pengingat lewat WhatsApp membuat saya tidak mudah lupa dengan jadwal dan kebutuhan nutrisi harian.",
   },
   {
     name: "Siti Rahma",
-    photo: "https://i.pravatar.cc/500?img=44",
+    photo: "/GambarPengguna4.png",
     text: "Informasinya ringkas dan mudah dipahami. Saya jadi lebih percaya diri dalam menyiapkan makanan untuk anak.",
   },
   {
     name: "Maya Putri",
-    photo: "https://i.pravatar.cc/500?img=5",
+    photo: "/GambarPengguna5.png",
     text: "Saya suka karena satu platform menggabungkan pemeriksaan kondisi, rekomendasi, dan pengingat nutrisi.",
   },
 ];

@@ -57,6 +57,9 @@ export default function LandingPage() {
   const [aiInView, setAiInView] = useState(false);
   const [videoVisible, setVideoVisible] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showVideoControl, setShowVideoControl] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const controlTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [practitionerInView, setPractitionerInView] = useState(false);
   const [usersInView, setUsersInView] = useState(false);
@@ -112,10 +115,17 @@ export default function LandingPage() {
         videoRef.current
           .play()
           .then(() => setIsPlaying(true))
-          .catch(() => {});
+          .catch(() => setAutoplayBlocked(true));
       }
     }
   }, [aiType.isFinished]);
+
+  // Bersihkan timer tombol kontrol video saat unmount
+  useEffect(() => {
+    return () => {
+      if (controlTimerRef.current) clearTimeout(controlTimerRef.current);
+    };
+  }, []);
 
   // 3. Practitioner Typewriter
   const practitionerType = useScrollTypewriter(
@@ -187,13 +197,29 @@ export default function LandingPage() {
     setAuthModalOpen(true);
   };
 
+  // Tombol play/pause hanya muncul sebentar setelah video ditekan
+  const flashVideoControl = () => {
+    if (controlTimerRef.current) clearTimeout(controlTimerRef.current);
+    setShowVideoControl(true);
+    controlTimerRef.current = setTimeout(() => setShowVideoControl(false), 900);
+  };
+
   const toggleVideo = () => {
-    if (!videoRef.current) return;
-    if (videoRef.current.paused) {
-      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    const video = videoRef.current;
+    if (!video) return;
+    setAutoplayBlocked(false);
+    if (video.paused) {
+      video
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          flashVideoControl();
+        })
+        .catch(() => {});
     } else {
-      videoRef.current.pause();
+      video.pause();
       setIsPlaying(false);
+      flashVideoControl();
     }
   };
 
@@ -287,7 +313,7 @@ export default function LandingPage() {
             </div>
 
             {/* Headline Typewriter */}
-            <h1 className="hero-title text-3xl sm:text-5xl lg:text-[56px] font-normal leading-[1.08] tracking-[-1.9px] text-[#121517] max-w-[900px] mx-auto min-h-[90px] sm:min-h-[125px]">
+            <h1 className="hero-title text-[32px] sm:text-[54px] lg:text-[66px] font-normal leading-[1.08] tracking-[-2.2px] text-[#121517] max-w-[1020px] mx-auto min-h-[104px] sm:min-h-[140px] lg:min-h-[145px]">
               {heroType.displayText}
               {heroCursorVisible && (
                 <span className="type-cursor" aria-hidden="true" />
@@ -296,7 +322,7 @@ export default function LandingPage() {
 
             {/* CTA Buttons */}
             <div
-              className={`hero-cta reveal-after-hero flex flex-wrap items-center justify-center gap-3 mt-9 sm:mt-11 mb-10 sm:mb-14 ${
+              className={`hero-cta reveal-after-hero flex flex-wrap items-center justify-center gap-3 mt-9 sm:mt-11 mb-16 sm:mb-24 ${
                 heroRevealed ? "is-visible" : ""
               }`}
             >
@@ -393,7 +419,7 @@ export default function LandingPage() {
 
             {/* Video Player Box with scroll fade-in */}
             <div
-              className={`video-wrap relative w-full aspect-video rounded-2xl sm:rounded-3xl overflow-hidden border-2 sm:border-4 border-[#d2d5d4] bg-[#f4f5f4] shadow-md group transition-all duration-700 ${
+              className={`video-wrap relative w-full aspect-video rounded-2xl sm:rounded-3xl overflow-hidden border-2 sm:border-4 border-[#d2d5d4] bg-[#f4f5f4] shadow-md transition-all duration-700 ${
                 videoVisible
                   ? "opacity-100 translate-y-0 pointer-events-auto"
                   : "opacity-0 translate-y-8 pointer-events-none"
@@ -413,7 +439,7 @@ export default function LandingPage() {
                 Browser Anda tidak mendukung tag video.
               </video>
 
-              {/* Center Play / Pause button overlay */}
+              {/* Klik video untuk play/pause. Tombol hanya muncul sebentar setelah diklik */}
               <div
                 onClick={toggleVideo}
                 className="absolute inset-0 flex items-center justify-center bg-black/10 cursor-pointer"
@@ -421,8 +447,9 @@ export default function LandingPage() {
                 <button
                   type="button"
                   aria-label={isPlaying ? "Jeda video" : "Putar video"}
-                  className={`w-13 sm:w-14 h-13 sm:h-14 rounded-full bg-black/80 hover:bg-black text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 cursor-pointer ${
-                    isPlaying ? "opacity-0 group-hover:opacity-100" : "opacity-100"
+                  tabIndex={-1}
+                  className={`w-13 sm:w-14 h-13 sm:h-14 rounded-full bg-black/80 text-white flex items-center justify-center shadow-lg pointer-events-none transition-opacity duration-300 ${
+                    showVideoControl || autoplayBlocked ? "opacity-100" : "opacity-0"
                   }`}
                 >
                   {isPlaying ? (

@@ -35,9 +35,15 @@ export default function AuthModal({
     isError?: boolean;
   }>({ show: false, message: "" });
 
+  // Setiap popup dibuka, mode selalu mengikuti tombol yang ditekan
+  // (Daftar -> signup, Masuk -> signin), bukan mode terakhir yang dibuka.
   useEffect(() => {
-    setMode(initialMode);
-  }, [initialMode]);
+    if (isOpen) {
+      setMode(initialMode);
+      setShowPassword(false);
+      setShowConfirmPassword(false);
+    }
+  }, [isOpen, initialMode]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -163,9 +169,12 @@ export default function AuthModal({
         </button>
 
         {/* Left Art (Hidden on Mobile) */}
-        <div className="auth-art hidden md:flex flex-col justify-between p-8 bg-[#07543f] text-white relative overflow-hidden">
-          <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full bg-[#05976A]/30 blur-2xl pointer-events-none" />
-          <div className="absolute -left-12 -top-12 w-64 h-64 rounded-full bg-[#E6F2EE]/10 blur-2xl pointer-events-none" />
+        <div
+          className="auth-art hidden md:flex flex-col justify-between p-8 bg-[#07543f] bg-cover bg-center bg-no-repeat text-white relative overflow-hidden"
+          style={{ backgroundImage: "url('/bg-popup01.png')" }}
+        >
+          {/* Overlay tipis agar teks tetap terbaca di atas gambar */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-black/25 pointer-events-none" />
 
           <div className="relative z-10">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-xs font-semibold backdrop-blur-md mb-6">
