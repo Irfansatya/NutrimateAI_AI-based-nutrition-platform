@@ -1,0 +1,269 @@
+/* =====================================================================
+   NutriMate AI — Dashboard (Revisi)
+   File ini di-import SETELAH dashboard.css, sehingga menimpa/menambah
+   aturan yang ada. dashboard.css sendiri tidak perlu diubah.
+
+   Catatan penting: `.db-root button { background:none; border:0 }`
+   (specificity 0,1,1) selama ini mengalahkan `.db-btn`, `.db-guide-btn`,
+   dan `.db-account-pill` (0,1,0). Itu sebabnya background tombol-tombol
+   tersebut transparan. Di sini semua selector diberi prefix `.db-root`.
+   ===================================================================== */
+
+/* ---------- HERO: video, subheadline, posisi navbar ---------- */
+.db-hero-video {
+  filter: blur(5px);
+  transform: scale(1.08);
+}
+
+#db-hero .db-hero-in {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+#db-hero .db-hero-main { flex: 1; }
+#db-hero .db-hero-bottom { margin-top: auto; margin-bottom: -1px; }
+
+/* Typewriter subheadline */
+.db-hero-sub.db-tw { display: block; }
+.db-tw-ghost { visibility: hidden; display: block; }
+.db-tw-live { position: absolute; left: 0; top: 0; width: 100%; display: block; }
+.db-tw-cursor {
+  display: inline-block; width: 2px; height: 1.05em; margin-left: 3px;
+  background: #fff; vertical-align: -.17em;
+  animation: dbCaret .8s steps(1) infinite;
+}
+.db-tw-cursor.typing { animation: none; }
+
+/* Pill tanggal & tombol Panduan: style sama persis */
+.db-root .db-date-pill,
+.db-root .db-guide-btn {
+  height: 36px; display: flex; align-items: center; gap: 8px;
+  padding: 0 14px; font-size: 14px; color: #fff;
+  border: 1px solid rgba(255,255,255,.48);
+  background: rgba(255,255,255,.18);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-radius: 999px;
+}
+.db-root .db-guide-btn {
+  cursor: pointer;
+  transition: background .2s, border-color .2s, transform .2s, box-shadow .2s;
+}
+.db-root .db-guide-btn:hover {
+  background: rgba(255,255,255,.30);
+  border-color: rgba(255,255,255,.75);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0,0,0,.18);
+}
+.db-root .db-guide-btn:active { transform: none; box-shadow: none; }
+.db-root .db-guide-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Menu navbar aktif: hijau, teks & ikon putih */
+.db-root .db-hero-nav button.on,
+.db-root .db-hero-nav button.on:hover {
+  background: #05976A; color: #fff;
+}
+.db-root .db-hero-nav button.on svg { color: #fff; }
+
+/* Tombol profil pengguna: putih solid */
+.db-root .db-account-pill {
+  background: #fff; color: #121517; cursor: pointer;
+  transition: box-shadow .2s, transform .2s;
+}
+.db-root .db-account-pill:hover {
+  box-shadow: 0 14px 34px rgba(2,30,18,.30);
+  transform: translateY(-1px);
+}
+.db-root .db-account-pill:focus-visible { outline: 2px solid #05976A; outline-offset: 2px; }
+.db-root .db-account-pill strong { color: #121517; }
+.db-root .db-account-pill small { color: #6B7280; }
+
+/* ---------- TOMBOL (semua variasi + hover) ---------- */
+.db-root .db-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--g); color: #fff; border: 0; cursor: pointer;
+  transition: background .18s, color .18s, border-color .18s, box-shadow .18s, transform .18s;
+}
+.db-root .db-btn .db-ic {
+  width: 16px; height: 16px; margin: 0; vertical-align: middle; flex: none; color: inherit;
+}
+.db-root .db-btn:hover:not(:disabled) {
+  background: #047F59; filter: none;
+  box-shadow: 0 6px 16px rgba(5,151,106,.28); transform: translateY(-1px);
+}
+.db-root .db-btn:active:not(:disabled) { transform: none; box-shadow: none; }
+.db-root .db-btn:focus-visible { outline: 2px solid var(--g); outline-offset: 2px; }
+.db-root .db-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.db-root .db-btn.o { background: #fff; color: var(--t); border: 1px solid var(--b); }
+.db-root .db-btn.o:hover:not(:disabled) {
+  background: #F3FAF7; border-color: var(--g); color: #04684A;
+  box-shadow: 0 4px 12px rgba(16,24,40,.08);
+}
+.db-root .db-btn.k { background: var(--t); color: #fff; }
+.db-root .db-btn.k:hover:not(:disabled) { background: #2A3035; box-shadow: 0 6px 16px rgba(18,21,23,.25); }
+.db-root .db-btn.gl { background: var(--gl); color: #04684A; border: 1px solid #BFE4D7; }
+.db-root .db-btn.gl:hover:not(:disabled) { background: #D4EDE4; box-shadow: none; }
+.db-root .db-btn.danger { background: #FEECEB; color: #B42318; }
+.db-root .db-btn.danger:hover:not(:disabled) { background: #FCD9D6; box-shadow: none; }
+
+/* Hover untuk elemen klik lain di NutriCheck */
+.db-root .db-st { cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
+.db-root .db-st:not(:disabled):not(.on):hover { border-color: #9fd5c1; background: #F6FBF9; color: var(--t); }
+.db-root .db-seg button { cursor: pointer; transition: background .15s, color .15s; }
+.db-root .db-seg button:not(.on):hover { background: rgba(255,255,255,.75); color: var(--t); }
+.db-root .db-gtabs button { transition: background .15s, border-color .15s; }
+.db-root .db-gtabs button:not(.on):hover { border-color: #9fd5c1; background: #F6FBF9; }
+.db-root .db-cat-tile { cursor: pointer; }
+
+/* Chip pilihan: input disembunyikan secara visual (tetap bisa difokus keyboard) */
+.db-chip { position: relative; }
+.db-chip input {
+  display: block; position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.db-chip span:hover { border-color: #9fd5c1; background: #F6FBF9; }
+.db-chip input:checked + span:hover { background: #DDF1E9; border-color: var(--g); }
+.db-chip input:focus-visible + span { box-shadow: 0 0 0 3px rgba(5,151,106,.22); }
+.db-chip input:disabled + span {
+  opacity: .45; cursor: not-allowed; background: #F7F8FA; border-color: var(--b); color: var(--s);
+}
+.db-chip input:disabled + span:hover { background: #F7F8FA; border-color: var(--b); }
+
+/* ---------- DROPDOWN / TANGGAL / JAM (custom) ---------- */
+.db-sel { position: relative; }
+.db-root .db-sel-btn {
+  width: 100%; min-height: 46px; display: flex; align-items: center; gap: 10px;
+  background: var(--f); border: 1px solid var(--b); border-radius: 10px;
+  padding: 0 14px; text-align: left; cursor: pointer; color: var(--t);
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.db-root .db-sel-btn:hover { border-color: #9fd5c1; background: #fff; }
+.db-root .db-sel.open .db-sel-btn,
+.db-root .db-sel-btn:focus-visible {
+  border-color: var(--g); background: #fff; box-shadow: 0 0 0 3px rgba(5,151,106,.12); outline: 0;
+}
+.db-sel-btn.ph .db-sel-txt { color: #8A9099; }
+.db-sel-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-sel-ic { width: 18px; height: 18px; color: var(--g); flex: none; }
+.db-sel-chev { width: 18px; height: 18px; color: #8A9099; flex: none; transition: transform .2s; }
+.db-sel.open .db-sel-chev { transform: rotate(180deg); color: var(--g); }
+.db-err .db-sel-btn { border-color: #D92D20; }
+
+.db-pop {
+  position: absolute; z-index: 60; left: 0; top: calc(100% + 8px); min-width: 100%;
+  background: #fff; border: 1px solid var(--b); border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(16,24,40,.16), 0 2px 6px rgba(16,24,40,.06);
+  animation: dbPopIn .16s ease both; transform-origin: top;
+}
+.db-pop.up { top: auto; bottom: calc(100% + 8px); transform-origin: bottom; }
+@keyframes dbPopIn { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* dropdown list */
+.db-sel-search {
+  display: flex; align-items: center; gap: 8px; padding: 0 12px; margin: 8px 8px 0;
+  background: var(--f); border: 1px solid var(--b); border-radius: 10px;
+}
+.db-sel-search svg { width: 16px; height: 16px; color: #8A9099; flex: none; }
+.db-sel-search input { flex: 1; min-width: 0; border: 0; background: none; padding: 10px 0; outline: 0; font-size: 14px; }
+.db-sel-search:focus-within { border-color: var(--g); }
+.db-sel-pop ul { list-style: none; margin: 0; padding: 6px; max-height: 248px; overflow-y: auto; }
+.db-sel-pop li {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-radius: 9px; cursor: pointer; font-size: 14.5px;
+}
+.db-sel-pop li[data-active="true"] { background: #F1F7F4; }
+.db-sel-pop li[aria-selected="true"] { background: var(--gl); color: #04684A; font-weight: 500; }
+.db-sel-check { width: 16px; height: 16px; color: var(--g); flex: none; }
+.db-sel-pop li.db-sel-empty { color: var(--s); cursor: default; justify-content: center; background: none; }
+
+/* kalender */
+.db-dp { width: min(320px, calc(100vw - 32px)); padding: 14px; }
+.db-dp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 10px; }
+.db-root .db-dp-nav {
+  width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px;
+  border: 1px solid var(--b); background: #fff; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.db-root .db-dp-nav:hover { background: var(--gl); border-color: #9fd5c1; }
+.db-root .db-dp-title {
+  flex: 1; padding: 7px 10px; border-radius: 9px; font-weight: 600; font-size: 15px; cursor: pointer;
+  transition: background .15s;
+}
+.db-root .db-dp-title:hover { background: #F1F7F4; }
+.db-dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+.db-dp-grid small { color: var(--s); font-size: 11.5px; padding: 6px 0; }
+.db-root .db-dp-grid button {
+  height: 38px; border-radius: 10px; font-size: 14px; cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.db-root .db-dp-grid button:hover:not(:disabled):not(.on) { background: var(--gl); color: #04684A; }
+.db-root .db-dp-grid button.td { box-shadow: inset 0 0 0 1.5px var(--g); }
+.db-root .db-dp-grid button.on { background: var(--g); color: #fff; font-weight: 600; }
+.db-root .db-dp-grid button:disabled { color: #C3C8D0; cursor: not-allowed; }
+.db-dp-cells { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.db-root .db-dp-cells button {
+  padding: 13px 0; border-radius: 10px; font-size: 14px; cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.db-root .db-dp-cells button:hover:not(.on) { background: var(--gl); color: #04684A; }
+.db-root .db-dp-cells button.on { background: var(--g); color: #fff; font-weight: 600; }
+.db-dp-foot {
+  display: flex; justify-content: space-between; gap: 8px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid #EEF1EF;
+}
+.db-root .db-dp-foot button {
+  padding: 7px 12px; border-radius: 9px; font-size: 13.5px; font-weight: 500;
+  color: #04684A; cursor: pointer; transition: background .15s;
+}
+.db-root .db-dp-foot button:hover:not(:disabled) { background: var(--gl); }
+.db-root .db-dp-foot button:disabled { color: #B5BAC4; cursor: not-allowed; }
+.db-root .db-dp-foot button.strong { background: var(--g); color: #fff; padding: 7px 16px; }
+.db-root .db-dp-foot button.strong:hover { background: #047F59; }
+
+/* jam */
+.db-tp { width: min(240px, calc(100vw - 32px)); padding: 12px; }
+.db-tp-body { display: flex; align-items: flex-start; justify-content: center; gap: 6px; }
+.db-tp-colwrap { flex: 1; min-width: 0; }
+.db-tp-colwrap small { display: block; text-align: center; color: var(--s); font-size: 12px; padding: 0 0 6px; }
+.db-tp-col {
+  position: relative; max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
+  padding-right: 2px; scrollbar-width: thin;
+}
+.db-root .db-tp-col button {
+  padding: 9px 0; border-radius: 9px; font-size: 15px; cursor: pointer; text-align: center;
+  font-variant-numeric: tabular-nums; transition: background .12s, color .12s;
+}
+.db-root .db-tp-col button:hover:not(.on) { background: var(--gl); color: #04684A; }
+.db-root .db-tp-col button.on { background: var(--g); color: #fff; font-weight: 600; }
+.db-tp-sep { padding-top: 34px; font-weight: 600; color: var(--s); }
+
+/* ---------- POPUP PROSES (Buat Rekomendasi) ---------- */
+.db-ai-msg.in { animation: dbAiMsgIn .35s ease both; }
+@keyframes dbAiMsgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.db-ai-steps i:before { transform: scaleX(0); animation: none; }
+.db-ai-wait-card[data-phase="0"] .db-ai-steps i:first-child:before { animation: dbAiFill 4.5s linear both; }
+.db-ai-wait-card[data-phase="1"] .db-ai-steps i:first-child:before { transform: scaleX(1); animation: none; }
+.db-ai-wait-card[data-phase="1"] .db-ai-steps i:last-child:before { animation: dbAiFill 3s linear both; }
+.db-ai-wait-card[data-phase="2"] .db-ai-steps i:before { transform: scaleX(1); animation: none; }
+
+.db-ai-dots { display: flex; justify-content: center; gap: 7px; margin-top: 14px; }
+.db-ai-dots i {
+  width: 8px; height: 8px; border-radius: 50%; background: #05976A;
+  animation: dbAiDot 1s ease-in-out infinite;
+}
+.db-ai-dots i:nth-child(2) { animation-delay: .15s; }
+.db-ai-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dbAiDot { 0%, 80%, 100% { transform: scale(.55); opacity: .35; } 40% { transform: scale(1); opacity: 1; } }
+
+/* ---------- NUTRIPLAN: skeleton & transisi tampil ---------- */
+.db-reveal { animation: dbReveal .5s ease both; }
+@keyframes dbReveal { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.db-skel-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; flex: 1; width: 100%; }
+.db-skel-cal .db-sk { height: 100%; min-height: 44px; border-radius: 10px; }
+.db-skel-row { display: flex; justify-content: space-between; gap: 12px; padding: 14px 0; border-top: 1px solid #EEF0F3; }
+.db-skel-row:first-child { border-top: 0; }
+.db-skel-row .db-sk { height: 16px; margin: 0; border-radius: 8px; }
+.db-sk.round { border-radius: 999px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .db-sk, .db-reveal, .db-pop, .db-ai-dots i, .db-ai-msg.in { animation: none; }
+}

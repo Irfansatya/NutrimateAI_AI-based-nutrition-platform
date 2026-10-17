@@ -2,6 +2,7 @@
 import React from "react";
 import { SvgIcon } from "./SvgIcon";
 import { PageIntro } from "./SharedComponents";
+import { CustomSelect, DatePicker, TimePicker } from "./FormControls";
 import {
   CATS, PROVINCES, buildPlan, MEAL_SLOTS,
   type Cat, type DayPlan,
@@ -107,7 +108,8 @@ interface FieldProps {
   f: Field;
   d: Record<string, unknown>;
   errors: string[];
-  onChange: (k: string, v: unknown) => void;
+  /** Menerima patch (boleh lebih dari satu key) agar tidak saling menimpa */
+  onChange: (patch: Record<string, unknown>) => void;
 }
 
 function FieldComp({ f, d, errors, onChange }: FieldProps) {
@@ -117,30 +119,39 @@ function FieldComp({ f, d, errors, onChange }: FieldProps) {
   const lainErr = errors.includes(f.k + "_x");
   const isWide = ["chk", "area", "rad", "bud"].includes(f.t);
   const isOptional = f.req === 0;
+  const set = (k: string, val: unknown) => onChange({ [k]: val });
 
   function renderInput() {
     if (f.t === "num") return (
       <div className="db-inp">
         <input type="number" min="0" step="any" value={String(v ?? "")}
           placeholder={f.ph ?? ""}
-          onChange={e => onChange(f.k, e.target.value)} />
+          onChange={e => set(f.k, e.target.value)} />
         {f.u && <span>{f.u}</span>}
       </div>
     );
     if (f.t === "sel") return (
-      <div className="db-inp">
-        <select value={String(v ?? "")} onChange={e => onChange(f.k, e.target.value)}>
-          <option value="">Pilih...</option>
-          {f.o?.map(x => <option key={x} value={x}>{x}</option>)}
-        </select>
-      </div>
+      <CustomSelect value={String(v ?? "")} options={f.o ?? []}
+        placeholder="Pilih..." onChange={val => set(f.k, val)} />
+    );
+    if (f.t === "date") {
+      const t = new Date();
+      const todayISO = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+      return (
+        <DatePicker value={String(v ?? "")}
+          max={f.k === "lhr" ? todayISO : undefined}
+          onChange={val => set(f.k, val)} />
+      );
+    }
+    if (f.t === "time") return (
+      <TimePicker value={String(v ?? "")} onChange={val => set(f.k, val)} />
     );
     if (f.t === "rad") return (
       <div className="db-chips">
         {f.o?.map(x => (
           <label key={x} className="db-chip">
             <input type="radio" name={f.k} value={x} checked={v === x}
-              onChange={() => onChange(f.k, x)} />
+              onChange={() => set(f.k, x)} />
             <span>{x}</span>
           </label>
         ))}
@@ -149,22 +160,35 @@ function FieldComp({ f, d, errors, onChange }: FieldProps) {
     if (f.t === "chk") {
       const arr: string[] = Array.isArray(v) ? (v as string[]) : [];
       const hasLain = arr.includes("Lainnya");
+      // Opsi eksklusif ("Tidak ada" / "Tidak mengonsumsi" / "Baik-baik saja")
+      const exOn = !!f.ex && arr.includes(f.ex);
+
+      const toggle = (x: string) => {
+        const checked = arr.includes(x);
+        let next: string[];
+        if (f.ex && x === f.ex) {
+          // pilih / lepas opsi eksklusif; memilihnya mengosongkan opsi lain
+          next = checked ? [] : [x];
+        } else if (exOn) {
+          return; // opsi lain terkunci selama opsi eksklusif aktif
+        } else {
+          next = checked ? arr.filter(a => a !== x) : [...arr, x];
+        }
+        const patch: Record<string, unknown> = { [f.k]: next };
+        if (!next.includes("Lainnya")) patch[f.k + "_x"] = "";
+        onChange(patch);
+      };
+
       return (
         <div>
           <div className="db-chips">
             {f.o?.map(x => {
               const checked = arr.includes(x);
+              const locked = exOn && x !== f.ex;
               return (
                 <label key={x} className="db-chip">
-                  <input type="checkbox" value={x} checked={checked}
-                    onChange={() => {
-                      let next: string[];
-                      if (f.ex && x === f.ex) next = checked ? arr.filter(a => a !== x) : [x];
-                      else if (f.ex && arr.includes(f.ex)) next = [x];
-                      else next = checked ? arr.filter(a => a !== x) : [...arr.filter(a => a !== x), x];
-                      onChange(f.k, next);
-                      if (!next.includes("Lainnya")) onChange(f.k + "_x", "");
-                    }} />
+                  <input type="checkbox" value={x} checked={checked} disabled={locked}
+                    onChange={() => toggle(x)} />
                   <span>{x}</span>
                 </label>
               );
@@ -175,7 +199,7 @@ function FieldComp({ f, d, errors, onChange }: FieldProps) {
               <div className="db-inp">
                 <input type="text" value={String(d[f.k + "_x"] ?? "")}
                   placeholder="Tuliskan opsi lainnya (wajib diisi)" maxLength={80}
-                  onChange={e => onChange(f.k + "_x", e.target.value)} />
+                  onChange={e => set(f.k + "_x", e.target.value)} />
               </div>
               {lainErr && <div className="db-em">Isi kolom &ldquo;Lainnya&rdquo; terlebih dahulu</div>}
             </div>
@@ -189,20 +213,20 @@ function FieldComp({ f, d, errors, onChange }: FieldProps) {
         <div>
           <div className="db-bv">Rp {bv.toLocaleString("id-ID")}</div>
           <input type="range" min="10000" max="500000" step="1000" value={bv}
-            onChange={e => onChange(f.k, Number(e.target.value))} />
+            onChange={e => set(f.k, Number(e.target.value))} />
         </div>
       );
     }
     if (f.t === "area") return (
       <textarea value={String(v ?? "")} placeholder={f.ph ?? ""}
-        onChange={e => onChange(f.k, e.target.value)} />
+        onChange={e => set(f.k, e.target.value)} />
     );
-    // date, time, txt
+    // txt
     return (
       <div className="db-inp">
-        <input type={f.t === "txt" ? "text" : f.t} value={String(v ?? "")}
+        <input type="text" value={String(v ?? "")}
           placeholder={f.ph ?? ""}
-          onChange={e => onChange(f.k, e.target.value)} />
+          onChange={e => set(f.k, e.target.value)} />
       </div>
     );
   }
@@ -407,37 +431,45 @@ export default function NutriCheck({
   const [growthMode, setGrowthMode] = React.useState<"bb" | "tb">("bb");
   const [showDemo, setShowDemo] = React.useState(false);
   const [showAiWait, setShowAiWait] = React.useState(false);
-  const [aiDone, setAiDone] = React.useState(false);
+  // 0 = menyiapkan rekomendasi, 1 = rekomendasi siap, 2 = loading singkat sebelum pindah ke NutriPlan
+  const [aiPhase, setAiPhase] = React.useState<0 | 1 | 2>(0);
+  const timers = React.useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  React.useEffect(() => {
+    const list = timers.current;
+    return () => list.forEach(clearTimeout);
+  }, []);
 
   const ss = SC[cat];
   const s = ss[step];
   const d = data[cat];
   const isLast = step === ss.length - 1;
 
-  function setD(k: string, v: unknown) {
-    const next = { ...d, [k]: v };
-    onDataChange(cat, next);
+  function setD(patch: Record<string, unknown>) {
+    onDataChange(cat, { ...d, ...patch });
   }
 
   function validateStep() {
     const fields = s[2].filter(f => !(f.if && !f.if(d)));
     const errs: string[] = [];
     for (const f of fields) {
-      if (f.req === 0) continue;
       const v = d[f.k];
       if (f.t === "chk") {
-        if (f.req === 1 && (!Array.isArray(v) || !(v as string[]).length)) errs.push(f.k);
-        if (f.lain && Array.isArray(v) && (v as string[]).includes("Lainnya") && !String(d[f.k + "_x"] ?? "").trim()) errs.push(f.k + "_x");
-      } else if (f.t === "bud") {
-        // always has default
-      } else if (v === undefined || v === "" || v === null) {
-        errs.push(f.k);
+        const arr = Array.isArray(v) ? (v as string[]) : [];
+        if (f.req === 1 && !arr.length) errs.push(f.k);
+        // "Lainnya" wajib diisi teks (berlaku walau field-nya opsional)
+        if (f.lain && arr.includes("Lainnya") && !String(d[f.k + "_x"] ?? "").trim()) errs.push(f.k + "_x");
+        continue;
       }
+      if (f.req === 0) continue;
+      if (f.t === "bud") continue; // selalu punya nilai bawaan
+      if (v === undefined || v === "" || v === null) errs.push(f.k);
     }
     return errs;
   }
 
   function handleNext() {
+    if (showAiWait) return;
     const errs = validateStep();
     setErrors(errs);
     if (errs.length) {
@@ -461,15 +493,20 @@ export default function NutriCheck({
         onGrowthUpdate(cat, [...existing, rec].sort((a, b) => a.ym - b.ym));
         onToast("Data bulan ini tersimpan di tab Perkembangan Kondisi");
       }
-      // start loading
-      setShowAiWait(true); setAiDone(false);
-      setTimeout(() => setAiDone(true), 4500);
-      setTimeout(() => {
-        setShowAiWait(false);
-        const budget = Number(d.bud) || 25000;
-        const plan = buildPlan(cat, budget, [], Date.now() % 9999);
-        onGoToPlan(plan, cat);
-      }, 7500);
+      // Proses: 4,5 dtk menyiapkan -> 3 dtk "rekomendasi siap" -> 3 dtk loading -> pindah ke NutriPlan
+      const STEP1 = 4500, STEP2 = 3000, LOAD = 3000;
+      setShowAiWait(true); setAiPhase(0);
+      timers.current.forEach(clearTimeout);
+      timers.current = [
+        setTimeout(() => setAiPhase(1), STEP1),
+        setTimeout(() => setAiPhase(2), STEP1 + STEP2),
+        setTimeout(() => {
+          setShowAiWait(false);
+          const budget = Number(d.bud) || 25000;
+          const plan = buildPlan(cat, budget, [], Date.now() % 9999);
+          onGoToPlan(plan, cat);
+        }, STEP1 + STEP2 + LOAD),
+      ];
     }
   }
 
@@ -480,7 +517,7 @@ export default function NutriCheck({
     const last2 = analysis[analysis.length - 1];
     return (
       <section className="db-form-area" style={{ position: "relative" }}>
-        {showAiWait && <AiWaitOverlay done={aiDone} />}
+        {showAiWait && <AiWaitOverlay phase={aiPhase} />}
         <PageIntro page="check" />
         <div className="db-category-box">
           <h2>Pilih kategori Anda</h2>
@@ -559,7 +596,7 @@ export default function NutriCheck({
 
   return (
     <section style={{ position: "relative" }}>
-      {showAiWait && <AiWaitOverlay done={aiDone} />}
+      {showAiWait && <AiWaitOverlay phase={aiPhase} />}
       <PageIntro page="check" />
       <div className="db-category-box">
         <h2>Pilih kategori Anda</h2>
@@ -598,7 +635,7 @@ export default function NutriCheck({
         <div className="db-grid">
           {s[2].map((f, i) => (
             <FieldComp key={f.k + i} f={f} d={d} errors={errors}
-              onChange={(k, v) => setD(k, v)} />
+              onChange={patch => setD(patch)} />
           ))}
         </div>
         <div className="db-foot">
@@ -610,19 +647,28 @@ export default function NutriCheck({
   );
 }
 
-function AiWaitOverlay({ done }: { done: boolean }) {
+function AiWaitOverlay({ phase }: { phase: 0 | 1 | 2 }) {
+  const content: [string, string][] = [
+    ["Menyiapkan rekomendasi gizi", "NutrimateAI sedang menyusun rekomendasi gizi berdasarkan data kondisi yang Anda masukkan."],
+    ["Rekomendasi sudah siap", "NutriPlan akan ditampilkan sebentar lagi."],
+    ["Membuka NutriPlan", "Mohon tunggu sebentar, rekomendasi Anda sedang dimuat."],
+  ];
+  const [title, text] = content[phase];
   return (
-    <div className={`db-ai-wait${done ? "" : ""}`} style={{ position: "fixed" }}>
-      <div className={`db-ai-wait-card${done ? " done" : ""}`} role="status" aria-live="polite">
+    <div className="db-ai-wait" style={{ position: "fixed" }}>
+      <div className={`db-ai-wait-card${phase === 1 ? " done" : ""}`} data-phase={phase} role="status" aria-live="polite">
         <div className="db-ai-ind">
           <div className="db-ai-spinner" />
           <svg className="db-ai-ok" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 12.5l4.5 4.5L19 7.5" />
           </svg>
         </div>
-        <div className={`db-ai-msg${done ? " out" : ""}`}>
-          <h2>{done ? "Rekomendasi sudah siap" : "Menyiapkan rekomendasi gizi"}</h2>
-          <p>{done ? "NutriPlan akan ditampilkan sebentar lagi." : "NutrimateAI sedang menyusun rekomendasi gizi berdasarkan data kondisi yang Anda masukkan."}</p>
+        <div className="db-ai-msg in" key={phase}>
+          <h2>{title}</h2>
+          <p>{text}</p>
+          {phase === 2 && (
+            <div className="db-ai-dots" aria-hidden="true"><i /><i /><i /></div>
+          )}
         </div>
         <div className="db-ai-steps" aria-hidden="true"><i /><i /></div>
       </div>

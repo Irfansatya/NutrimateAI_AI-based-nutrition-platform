@@ -4,7 +4,10 @@ import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import "./dashboard.css";
+import "./dashboard-revisi.css";
 
+import PingPongVideo from "@/component/PingPongVideo";
+import TypewriterSubtitle from "@/component/dashboard/TypewriterSubtitle";
 import { SvgIcon } from "@/component/dashboard/SvgIcon";
 import { Toast, ProfileModal, GuideModal } from "@/component/dashboard/SharedComponents";
 import NutriCheck, { type GrowthRecord } from "@/component/dashboard/NutriCheck";
@@ -20,6 +23,12 @@ import {
   type DayPlan,
   type Campaign,
 } from "@/lib/dashboard/mockData";
+
+// Dua teks subheadline yang tampil bergantian (Typewriter Effect)
+const HERO_SUBTEXTS = [
+  "Kenali kebutuhan gizi keluarga dengan rekomendasi yang personal.",
+  "Pantau perkembangan Bunda dan si kecil setiap bulan dengan lebih mudah.",
+];
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<string>("check");
@@ -81,21 +90,17 @@ export default function DashboardPage() {
 
       {/* HERO HEADER */}
       <header id="db-hero">
-        <video
-          className="db-hero-video"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="none"
+        {/* Video background: diperlambat, di-blur, diputar maju-mundur (ping-pong) */}
+        <PingPongVideo
+          src="/videos/video-background.mp4"
           poster="/bg-fitur.png"
-        >
-          <source src="/videos/video-background.mp4" type="video/mp4" />
-        </video>
+          playbackRate={0.4}
+          className="db-hero-video"
+        />
 
         <div className="db-hero-in">
           <div className="db-hero-top">
-            <Link href="/" className="db-brand-white" aria-label="NutriMate AI beranda">
+            <Link href="" className="db-brand-white" aria-label="NutriMate AI beranda">
               <Image
                 src="/logo_NutrimateAI_putih.svg"
                 alt="NutriMate AI"
@@ -123,10 +128,8 @@ export default function DashboardPage() {
 
           <div className="db-hero-main">
             <div className="db-hero-copy">
-              <h1>Halo, Bunda {user.name.split(" ")[0]}</h1>
-              <p className="db-hero-sub">
-                Mari pantau dan penuhi kebutuhan nutrisi keluarga bersama NutriMate AI.
-              </p>
+              <h1>Selamat datang, {user.name.split(" ")[0]}.</h1>
+              <TypewriterSubtitle texts={HERO_SUBTEXTS} typeSpeed={45} holdMs={5000} />
             </div>
           </div>
 
@@ -178,7 +181,7 @@ export default function DashboardPage() {
               </span>
               <span>
                 <strong>{user.name}</strong>
-                <small>{user.role}</small>
+                <small>{user.email}</small>
               </span>
             </button>
           </div>

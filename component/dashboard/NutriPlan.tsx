@@ -8,6 +8,72 @@ const rp = (k: number) => "Rp " + Math.round(k * 1000).toLocaleString("id-ID");
 const rpFlat = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID");
 const dk = (d: Date) => d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate();
 
+// ===== SKELETON / SHIMMER =====
+function PlanSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Memuat rekomendasi menu">
+      <PageIntro page="plan" action={<div className="db-sk" style={{ width: 150, height: 44, borderRadius: 10 }} />} />
+      <div className="db-plan-layout">
+        <div className="db-plan-left">
+          {/* kalender */}
+          <div className="db-plan-summary">
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div className="db-sk" style={{ width: 34, height: 34, borderRadius: 8 }} />
+                <div className="db-sk" style={{ width: 150, height: 22 }} />
+                <div className="db-sk" style={{ width: 34, height: 34, borderRadius: 8 }} />
+              </div>
+              <div className="db-skel-cal">
+                {Array.from({ length: 35 }).map((_, i) => <div key={i} className="db-sk" />)}
+              </div>
+            </div>
+          </div>
+          {/* ringkasan */}
+          <div className="db-plan-right">
+            <div className="db-sum">
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} className="db-skel-row">
+                  <div className="db-sk" style={{ width: "28%" }} />
+                  <div className="db-sk" style={{ width: "34%" }} />
+                </div>
+              ))}
+            </div>
+            <div className="db-sk" style={{ height: 74, borderRadius: 18 }} />
+            <div className="db-sk" style={{ height: 250, borderRadius: 18 }} />
+          </div>
+        </div>
+        {/* menu harian */}
+        <div>
+          <div className="db-day-head">
+            <div>
+              <div className="db-sk" style={{ width: 130, height: 14, margin: 0 }} />
+              <div className="db-sk" style={{ width: 280, height: 28, margin: "10px 0 0" }} />
+            </div>
+            <div className="db-sk" style={{ width: 230, height: 38, borderRadius: 12 }} />
+          </div>
+          <div className="db-meal-list">
+            {[0, 1, 2].map(i => (
+              <article key={i} className="db-meal">
+                <div className="db-meal-h">
+                  <div className="db-sk round" style={{ width: 62, height: 24 }} />
+                  <div className="db-sk" style={{ width: 110, height: 20 }} />
+                </div>
+                {[0, 1, 2, 3].map(j => (
+                  <div key={j} className="db-skel-row">
+                    <div className="db-sk" style={{ width: "42%" }} />
+                    <div className="db-sk" style={{ width: "28%" }} />
+                  </div>
+                ))}
+                <div className="db-sk" style={{ width: 150, height: 16, marginTop: 14 }} />
+              </article>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface NutriPlanProps {
   plan: DayPlan[] | null;
   planCat: Cat;
@@ -30,6 +96,12 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
   const [showModal, setShowModal] = React.useState(false);
   const [waErr, setWaErr] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  // Skeleton/Shimmer sebentar saat halaman NutriPlan baru dibuka
+  const [booting, setBooting] = React.useState(true);
+  React.useEffect(() => {
+    const t = setTimeout(() => setBooting(false), 2200);
+    return () => clearTimeout(t);
+  }, []);
 
   // Sync plan from props
   React.useEffect(() => { if (plan) { setLocalPlan(plan); setSel(0); setViewMonth(new Date(plan[0].d.getFullYear(), plan[0].d.getMonth(), 1)); } }, [plan]);
@@ -47,14 +119,7 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
     );
   }
 
-  if (loading) {
-    return (
-      <div>
-        <PageIntro page="plan" />
-        {[1, 2, 3, 4, 5].map(i => <div key={i} className="db-sk" style={{ height: 60, marginBottom: 12 }} />)}
-      </div>
-    );
-  }
+  if (booting || loading) return <PlanSkeleton />;
 
   const vm = viewMonth;
   const y = vm.getFullYear(), mo = vm.getMonth();
@@ -105,7 +170,7 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
   const ex = [meals[0], meals[2], meals[4]].filter(Boolean).map(m => `${m.l}: ${m.items.map(i => i.n).join(", ")}`).join(". ");
 
   return (
-    <div>
+    <div className="db-reveal">
       <PageIntro page="plan" action={<button className="db-btn o" onClick={onGoCheck}>Perbarui kondisi</button>} />
       <div className="db-plan-layout">
         <div className="db-plan-left">
