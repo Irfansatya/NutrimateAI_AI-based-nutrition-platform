@@ -85,22 +85,9 @@ export default function HubungiKamiPage() {
 
           <Link
             href="/"
-            style={{ color: "#ffffff" }}
-            className="back-top bg-[#003223] rounded-lg px-4 py-2 text-xs font-semibold hover:bg-[#00251a] hover:-translate-y-0.5 transition-all inline-flex items-center gap-1.5"
+            className="back-top bg-[#003223] text-white rounded-lg px-4 py-2 text-xs font-semibold hover:bg-[#00251a] hover:-translate-y-0.5 transition-all inline-flex items-center gap-1.5"
           >
-            <svg
-              className="w-3.5 h-3.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#ffffff"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M19 12H5M11 18l-6-6 6-6" />
-            </svg>
-            <span style={{ color: "#ffffff" }}>Kembali</span>
+            ← Kembali
           </Link>
         </nav>
 

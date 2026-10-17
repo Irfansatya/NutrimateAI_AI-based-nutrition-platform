@@ -227,4 +227,5 @@ export const INTRO:Record<string,[string,string]>={
   plan:['NutriPlan','Rekomendasi bahan pangan dan takaran tiap waktu makan, bebas Anda olah sesuai selera keluarga.'],
   help:['NutriHelp','Ajukan open donasi untuk membantu memenuhi kebutuhan nutrisi Anda bersama para donatur.'],
   assist:['NutriAssist','Salurkan donasi untuk membantu ibu dan anak memenuhi kebutuhan gizi.'],
+  wallet:['NutriWallet','Pantau saldo bantuan yang terkumpul dan riwayat transaksi open donasi Anda.'],
 };
