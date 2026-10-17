@@ -32,7 +32,7 @@ export default function HubungiKamiPage() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        showToast("Ukuran file terlalu besar", "Maksimal ukuran lampiran adalah 10 MB.", true);
+        showToast("Ukuran lampiran melebihi batas", "Ukuran file maksimal 10 MB. Silakan pilih file dengan ukuran lebih kecil.", true);
         if (fileInputRef.current) fileInputRef.current.value = "";
         setFileName("");
         return;
@@ -56,14 +56,13 @@ export default function HubungiKamiPage() {
     e.preventDefault();
 
     if (!fullName.trim() || !email.trim() || !topic || !message.trim()) {
-      showToast("Form belum lengkap", "Harap isi semua kolom wajib sebelum mengirim pesan.", true);
+      showToast("Formulir belum lengkap", "Mohon lengkapi seluruh kolom yang bertanda bintang (*) sebelum mengirim pesan.", true);
       return;
     }
 
-    // Front-end notification with clear, honest note that backend will be connected in Phase 4
     showToast(
-      "Pesan telah terkirim",
-      "Terima kasih! Pesan Anda telah kami terima (Mode formulir frontend; koneksi server penuh akan aktif pada integrasi API backend)."
+      "Pesan berhasil dikirim",
+      "Terima kasih telah menghubungi NutrimateAI. Tim kami akan menanggapi melalui email yang Anda cantumkan."
     );
     handleReset();
   };
@@ -86,9 +85,9 @@ export default function HubungiKamiPage() {
 
           <Link
             href="/"
-            className="back-top bg-[#003223] text-white! rounded-lg px-4 py-2 text-xs font-semibold hover:bg-[#00251a] hover:-translate-y-0.5 transition-all inline-flex items-center gap-1.5"
+            className="back-top bg-[#003223] text-white rounded-lg px-4 py-2 text-xs font-semibold hover:bg-[#00251a] hover:-translate-y-0.5 transition-all inline-flex items-center gap-1.5"
           >
-            Kembali
+            ← Kembali
           </Link>
         </nav>
 

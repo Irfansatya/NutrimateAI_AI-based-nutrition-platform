@@ -1,165 +1,39 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
+import PingPongVideo from "@/component/PingPongVideo";
 
 const features = [
   {
     title: "Analisis Kondisi Anda",
     desc: "Kami pahami kondisi ekonomi, kesehatan, dan lingkungan anda dahulu agar rekomendasi menu bisa lebih tepat.",
-    svgBg: (
-      <svg viewBox="0 0 800 460" xmlns="http://www.w3.org/2000/svg" className="w-full h-full object-cover">
-        <defs>
-          <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
-            <stop stopColor="#e8f7f1" />
-            <stop offset="1" stopColor="#c7eadc" />
-          </linearGradient>
-        </defs>
-        <rect width="800" height="460" rx="28" fill="url(#g1)" />
-        <circle cx="650" cy="95" r="70" fill="#fff" opacity=".55" />
-        <rect x="95" y="310" width="610" height="18" rx="9" fill="#8cc9b4" opacity=".7" />
-        <circle cx="290" cy="168" r="58" fill="#f1bd96" />
-        <path d="M235 160c8-62 100-72 119-2-28-17-61-24-119 2Z" fill="#2e3b36" />
-        <path d="M226 223c17-31 91-36 126 0l34 101H190Z" fill="#fff" />
-        <circle cx="516" cy="216" r="48" fill="#f1bd96" />
-        <path d="M470 207c4-46 72-59 91-8-25-15-55-17-91 8Z" fill="#5b4030" />
-        <path d="M459 258c16-29 69-29 92 0l25 66H434Z" fill="#f1c75b" />
-        <path d="M305 255c55 4 100 24 134 62" fill="none" stroke="#d79b76" strokeWidth="18" strokeLinecap="round" />
-        <circle cx="585" cy="356" r="34" fill="#fff" />
-        <path d="M566 356l13 13 27-30" fill="none" stroke="#2a9b72" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
+    image: "/GambarFitur1.png",
   },
   {
     title: "Susun Asupan Nutrisi",
     desc: "Tak perlu bingung memikirkan menu setiap hari. Kami susun rencana gizi bulanan yang terjangkau dan sesuai.",
-    svgBg: (
-      <svg viewBox="0 0 800 460" xmlns="http://www.w3.org/2000/svg" className="w-full h-full object-cover">
-        <defs>
-          <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
-            <stop stopColor="#eef9f5" />
-            <stop offset="1" stopColor="#d5eee4" />
-          </linearGradient>
-        </defs>
-        <rect width="800" height="460" rx="28" fill="url(#g2)" />
-        <circle cx="400" cy="235" r="150" fill="#fff" />
-        <circle cx="400" cy="235" r="112" fill="#f7f0d8" />
-        <path d="M400 235 490 174A112 112 0 0 1 497 285Z" fill="#e9b45b" />
-        <path d="M400 235 497 285A112 112 0 0 1 334 330Z" fill="#72b98d" />
-        <path d="M400 235 334 330A112 112 0 0 1 288 190Z" fill="#e77b62" />
-        <path d="M400 235 288 190A112 112 0 0 1 490 174Z" fill="#d6d8ec" />
-        <circle cx="148" cy="115" r="42" fill="#fff" />
-        <path d="M125 119h46M148 96v46" stroke="#3aa77c" strokeWidth="10" strokeLinecap="round" />
-        <circle cx="654" cy="345" r="48" fill="#fff" />
-        <path d="M632 346h44M654 324v44" stroke="#e5b24f" strokeWidth="10" strokeLinecap="round" />
-      </svg>
-    ),
+    image: "/GambarFitur2.png",
   },
   {
     title: "Pantau Perkembangan",
     desc: "Catat berat dan tinggi si kecil tiap bulan, lihat perkembangannya, dan menu gizinya akan ikut disesuaikan.",
-    svgBg: (
-      <svg viewBox="0 0 800 460" xmlns="http://www.w3.org/2000/svg" className="w-full h-full object-cover">
-        <defs>
-          <linearGradient id="g3" x1="0" y1="0" x2="1" y2="1">
-            <stop stopColor="#eaf7f2" />
-            <stop offset="1" stopColor="#d2eae1" />
-          </linearGradient>
-        </defs>
-        <rect width="800" height="460" rx="28" fill="url(#g3)" />
-        <rect x="178" y="88" width="444" height="285" rx="30" fill="#fff" />
-        <rect x="212" y="128" width="220" height="20" rx="10" fill="#a9d8c7" />
-        <rect x="212" y="171" width="335" height="14" rx="7" fill="#d9ebe4" />
-        <rect x="212" y="199" width="270" height="14" rx="7" fill="#d9ebe4" />
-        <circle cx="290" cy="278" r="48" fill="#dff3eb" />
-        <path d="M270 280c13-25 34-25 47 0" fill="none" stroke="#3da47c" strokeWidth="10" strokeLinecap="round" />
-        <circle cx="290" cy="260" r="12" fill="#3da47c" />
-        <path d="M438 246h88v64h-88z" fill="#f1d98e" />
-        <path d="M454 278h56" stroke="#fff" strokeWidth="10" strokeLinecap="round" />
-        <circle cx="665" cy="105" r="42" fill="#fff" />
-        <path d="M642 105h46M665 82v46" stroke="#3da47c" strokeWidth="9" strokeLinecap="round" />
-        <circle cx="125" cy="350" r="42" fill="#fff" />
-        <path d="M105 351h40M125 331v40" stroke="#e2b052" strokeWidth="9" strokeLinecap="round" />
-      </svg>
-    ),
+    image: "/GambarFitur3.png",
   },
   {
     title: "Ingatkan Anda Tiap Hari",
     desc: "Tak perlu bolak-balik membuka website. Kami ingatkan kebutuhan gizi si kecil lewat WhatsApp setiap hari.",
-    svgBg: (
-      <svg viewBox="0 0 800 460" xmlns="http://www.w3.org/2000/svg" className="w-full h-full object-cover">
-        <defs>
-          <linearGradient id="g4" x1="0" y1="0" x2="1" y2="1">
-            <stop stopColor="#e8f7f1" />
-            <stop offset="1" stopColor="#c7eadc" />
-          </linearGradient>
-        </defs>
-        <rect width="800" height="460" rx="28" fill="url(#g4)" />
-        <circle cx="650" cy="95" r="70" fill="#fff" opacity=".55" />
-        <rect x="95" y="310" width="610" height="18" rx="9" fill="#8cc9b4" opacity=".7" />
-        <circle cx="290" cy="168" r="58" fill="#f1bd96" />
-        <path d="M235 160c8-62 100-72 119-2-28-17-61-24-119 2Z" fill="#2e3b36" />
-        <path d="M226 223c17-31 91-36 126 0l34 101H190Z" fill="#fff" />
-        <circle cx="516" cy="216" r="48" fill="#f1bd96" />
-        <path d="M470 207c4-46 72-59 91-8-25-15-55-17-91 8Z" fill="#5b4030" />
-        <path d="M459 258c16-29 69-29 92 0l25 66H434Z" fill="#f1c75b" />
-        <path d="M305 255c55 4 100 24 134 62" fill="none" stroke="#d79b76" strokeWidth="18" strokeLinecap="round" />
-        <circle cx="585" cy="356" r="34" fill="#fff" />
-        <path d="M566 356l13 13 27-30" fill="none" stroke="#2a9b72" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
+    image: "/GambarFitur4.png",
   },
   {
     title: "Galang Donasi Gizi",
     desc: "Dana belum cukup untuk gizi buah hati? Ceritakan kebutuhan Anda, dan biarkan masyarakat ikut membantu.",
-    svgBg: (
-      <svg viewBox="0 0 800 460" xmlns="http://www.w3.org/2000/svg" className="w-full h-full object-cover">
-        <defs>
-          <linearGradient id="g5" x1="0" y1="0" x2="1" y2="1">
-            <stop stopColor="#eef9f5" />
-            <stop offset="1" stopColor="#d5eee4" />
-          </linearGradient>
-        </defs>
-        <rect width="800" height="460" rx="28" fill="url(#g5)" />
-        <circle cx="400" cy="235" r="150" fill="#fff" />
-        <circle cx="400" cy="235" r="112" fill="#f7f0d8" />
-        <path d="M400 235 490 174A112 112 0 0 1 497 285Z" fill="#e9b45b" />
-        <path d="M400 235 497 285A112 112 0 0 1 334 330Z" fill="#72b98d" />
-        <path d="M400 235 334 330A112 112 0 0 1 288 190Z" fill="#e77b62" />
-        <path d="M400 235 288 190A112 112 0 0 1 490 174Z" fill="#d6d8ec" />
-        <circle cx="148" cy="115" r="42" fill="#fff" />
-        <path d="M125 119h46M148 96v46" stroke="#3aa77c" strokeWidth="10" strokeLinecap="round" />
-        <circle cx="654" cy="345" r="48" fill="#fff" />
-        <path d="M632 346h44M654 324v44" stroke="#e5b24f" strokeWidth="10" strokeLinecap="round" />
-      </svg>
-    ),
+    image: "/GambarFitur5.png",
   },
   {
     title: "Salurkan Bantuan Gizi",
     desc: "Bantuan anda akan sampai langsung ke ibu dan anak yang membutuhkan, menjadi sepiring gizi untuk tumbuh sehat.",
-    svgBg: (
-      <svg viewBox="0 0 800 460" xmlns="http://www.w3.org/2000/svg" className="w-full h-full object-cover">
-        <defs>
-          <linearGradient id="g6" x1="0" y1="0" x2="1" y2="1">
-            <stop stopColor="#eaf7f2" />
-            <stop offset="1" stopColor="#d2eae1" />
-          </linearGradient>
-        </defs>
-        <rect width="800" height="460" rx="28" fill="url(#g6)" />
-        <rect x="178" y="88" width="444" height="285" rx="30" fill="#fff" />
-        <rect x="212" y="128" width="220" height="20" rx="10" fill="#a9d8c7" />
-        <rect x="212" y="171" width="335" height="14" rx="7" fill="#d9ebe4" />
-        <rect x="212" y="199" width="270" height="14" rx="7" fill="#d9ebe4" />
-        <circle cx="290" cy="278" r="48" fill="#dff3eb" />
-        <path d="M270 280c13-25 34-25 47 0" fill="none" stroke="#3da47c" strokeWidth="10" strokeLinecap="round" />
-        <circle cx="290" cy="260" r="12" fill="#3da47c" />
-        <path d="M438 246h88v64h-88z" fill="#f1d98e" />
-        <path d="M454 278h56" stroke="#fff" strokeWidth="10" strokeLinecap="round" />
-        <circle cx="665" cy="105" r="42" fill="#fff" />
-        <path d="M642 105h46M665 82v46" stroke="#3da47c" strokeWidth="9" strokeLinecap="round" />
-        <circle cx="125" cy="350" r="42" fill="#fff" />
-        <path d="M105 351h40M125 331v40" stroke="#e2b052" strokeWidth="9" strokeLinecap="round" />
-      </svg>
-    ),
+    image: "/GambarFitur6.png",
   },
 ];
 
@@ -254,10 +128,22 @@ export default function FeatureCarousel() {
 
   return (
     <div
-      className="feature-area relative min-h-[405px] sm:min-h-[455px] lg:min-h-[555px] pb-6 bg-[url('/bg-fitur.png')] bg-cover bg-center select-none"
+      className="feature-area relative isolate min-h-[405px] sm:min-h-[455px] lg:min-h-[555px] pb-6 bg-[#173e30] select-none"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
+      {/* Background video (ping-pong, slow, blurred) */}
+      <div className="feature-bg absolute inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden="true">
+        <PingPongVideo
+          src="/videos/video-background.mp4"
+          poster="/bg-fitur.png"
+          playbackRate={0.5}
+          className="absolute inset-0 w-full h-full object-cover blur-[3px] scale-[1.06] will-change-transform"
+        />
+        <div className="absolute -inset-2.5 bg-[linear-gradient(110deg,rgba(3,30,18,0.8),rgba(0,69,46,0.38)_48%,rgba(15,91,90,0.35)),rgba(255,255,255,0.12)] backdrop-blur-[14px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_5%_0%,rgba(9,180,132,0.25),transparent_35%),linear-gradient(0deg,rgba(0,24,13,0.23),transparent_48%)]" />
+      </div>
+
       {/* Floating pill label */}
       <div className="feature-label w-max max-w-[calc(100%-32px)] mx-auto -translate-y-[17px] bg-[#E6F2EE] text-[#0c4537] rounded-xl px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-center gap-2 text-sm sm:text-base font-medium shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
         <svg className="w-5 h-5 flex-none text-[#05976A]" viewBox="0 0 24 24" fill="currentColor">
@@ -307,7 +193,14 @@ export default function FeatureCarousel() {
                   {feature.desc}
                 </p>
                 <div className="w-full h-[145px] sm:h-[185px] lg:h-[242px] rounded-xl overflow-hidden bg-neutral-100 mt-auto flex-none">
-                  {feature.svgBg}
+                  <Image
+                    src={feature.image}
+                    alt={feature.title}
+                    width={700}
+                    height={484}
+                    className="w-full h-full object-cover"
+                    draggable={false}
+                  />
                 </div>
               </article>
             );

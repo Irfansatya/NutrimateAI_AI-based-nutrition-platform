@@ -1,0 +1,73 @@
+/* ===== Popup Panduan (dipakai di landing page & halaman role User) ===== */
+.gx-lock{overflow:hidden}
+.gx{
+  --g:#05976A;--gl:#E9F6F1;--t:#121517;--s:#505257;--b:#E3E6EC;
+  position:fixed;inset:0;z-index:5000;display:grid;place-items:center;padding:16px;
+  background:rgba(9,24,17,.5);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  font-family:'Google Sans Flex',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-optical-sizing:auto;font-size:15px;line-height:normal;color:var(--t);
+  -webkit-font-smoothing:antialiased;
+}
+.gx *,.gx *::before,.gx *::after{box-sizing:border-box}
+:where(.gx) :is(h2,h3,p,ol,figure){margin:0}
+:where(.gx) button{cursor:pointer;border:0;background:none;font:inherit;color:inherit;padding:0}
+.gx .ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* tombol footer (setara .btn pada HTML asli) */
+.gx .btn{padding:12px 22px;border-radius:10px;font-weight:500;background:var(--g);color:#fff;border:0;text-align:center;display:inline-block;cursor:pointer}
+.gx .btn:hover{filter:brightness(.94)}
+.gx .btn.o{background:#fff;color:var(--t);border:1px solid var(--b)}
+
+.gx-card{width:min(1100px,100%);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;background:#fff;border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.28);overflow:hidden;animation:gxCard .25s ease both}
+@keyframes gxCard{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+.gx-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:22px 24px 14px}
+.gx-head h2{font-size:22px;font-weight:600;letter-spacing:-.4px}
+.gx-head p{color:var(--s);font-size:14.5px;margin-top:3px}
+.gx-x{flex:none;width:36px;height:36px;border-radius:50%;background:#F2F4F9;color:var(--s);font-size:22px;line-height:1;display:grid;place-items:center}
+.gx-x:hover{background:#E8EBF1}
+.gx-nav{display:flex;gap:6px;overflow-x:auto;padding:2px 24px 14px;scrollbar-width:none;border-bottom:1px solid #EEF1EF}
+.gx-nav::-webkit-scrollbar{display:none}
+.gx-nav button{flex:none;display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;border:1px solid var(--b);background:#fff;color:var(--s);font-size:14px;white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
+.gx-nav button .ic{width:17px;height:17px}
+.gx-nav button:hover{background:#F6F9F7}
+.gx-nav button[aria-selected=true]{background:var(--gl);border-color:var(--g);color:#04684A;font-weight:600}
+.gx-body{flex:1;min-height:0;overflow:auto;padding:20px 24px}
+.gx-main{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:26px;align-items:center}
+.gx-fig{margin:0;border-radius:18px;overflow:hidden;border:1px solid var(--b);background:#F2F8F4;line-height:0}
+.gx-fig svg{width:100%;height:auto;display:block}
+.gx-nm{color:var(--g);font-weight:600;font-size:14px}
+.gx-info h3{font-size:clamp(21px,2.1vw,25px);font-weight:600;letter-spacing:-.5px;margin:4px 0 8px;line-height:1.2}
+.gx-lead{color:var(--s);line-height:1.6;font-size:15px}
+.gx-steps{list-style:none;padding:0;margin:18px 0 0;display:flex;flex-direction:column;gap:12px}
+.gx-steps li{display:flex;gap:12px;align-items:flex-start;line-height:1.55;font-size:15px}
+.gx-steps li>b{flex:none;width:24px;height:24px;border-radius:50%;background:var(--g);color:#fff;display:grid;place-items:center;font-size:12.5px;font-weight:700;margin-top:1px}
+.gx-steps li b b,.gx-tip b{font-weight:600}
+.gx-tip{display:flex;gap:10px;align-items:flex-start;margin-top:18px;padding:12px 14px;border-radius:12px;background:var(--gl);color:#04684A;font-size:14px;line-height:1.55}
+.gx-tip .ic{width:18px;height:18px;margin-top:1px}
+.gx-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 24px 18px;border-top:1px solid #EEF1EF}
+.gx-cnt{color:#77817b;font-size:13.5px}
+.gx-foot .btn{min-width:116px}
+.gx-foot .btn:disabled{opacity:.4;cursor:default}
+.gx-in{animation:gxIn .3s ease both}
+@keyframes gxIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(min-width:1000px){
+ .gx-card{display:grid;grid-template-columns:184px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;height:min(660px,calc(100dvh - 32px))}
+ .gx-head{grid-column:1/-1}
+ .gx-nav{grid-row:2/4;flex-direction:column;overflow-y:auto;padding:4px 10px 18px 20px;border-bottom:0;gap:4px}
+ .gx-nav button{border:0;border-radius:12px;padding:11px 12px;background:none;white-space:normal}
+ .gx-nav button[aria-selected=true]{background:var(--gl)}
+ .gx-body{grid-column:2;grid-row:2;padding:6px 28px 16px 12px}
+ .gx-foot{grid-column:2;grid-row:3;padding:12px 28px 18px 14px}
+ .gx-nav button:nth-child(4),.gx-nav button:nth-child(7){margin-top:10px}
+}
+@media(max-width:999px){.gx-main{grid-template-columns:1fr;gap:18px;max-width:640px;margin:0 auto}.gx-body{padding:16px 20px}.gx-head{padding:18px 20px 12px}.gx-nav{padding:2px 20px 12px}.gx-foot{padding:12px 20px 16px}}
+@media(max-width:640px){
+ .gx{padding:10px}
+ .gx-card{max-height:calc(100dvh - 20px);border-radius:20px}
+ .gx-head h2{font-size:19px}.gx-head p{font-size:13.5px}
+ .gx-nav button{padding:8px 12px;font-size:13.5px}
+ .gx-steps li,.gx-lead{font-size:14.5px}
+ .gx-foot .btn{min-width:0;flex:1;padding-left:10px;padding-right:10px}
+ .gx-cnt{display:none}
+}
+@media(prefers-reduced-motion:reduce){.gx-card,.gx-in{animation:none}}
