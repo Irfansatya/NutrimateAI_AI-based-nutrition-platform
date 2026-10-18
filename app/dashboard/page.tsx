@@ -356,7 +356,7 @@ export default function DashboardPage() {
         <PingPongVideo
           src="/videos/video-background.mp4"
           poster="/bg-fitur.png"
-          playbackRate={0.4}
+          playbackRate={1.0}
           className="db-hero-video"
         />
 
