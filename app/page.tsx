@@ -177,7 +177,11 @@ export default function LandingPage() {
   );
 
   // Intersection Observers setup
+  // PENTING: observer baru boleh dipasang setelah pengecekan auth selesai (authChecked = true),
+  // karena sebelum itu halaman hanya menampilkan spinner sehingga ref section masih null.
   useEffect(() => {
+    if (!authChecked) return;
+
     const observerOptions = { threshold: 0.3 };
 
     const aiObserver = new IntersectionObserver((entries) => {
@@ -218,7 +222,7 @@ export default function LandingPage() {
       usersObserver.disconnect();
       closingObserver.disconnect();
     };
-  }, []);
+  }, [authChecked]);
 
   const handleOpenAuth = (mode: "signin" | "signup") => {
     setAuthMode(mode);

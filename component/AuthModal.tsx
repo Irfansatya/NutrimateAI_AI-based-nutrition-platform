@@ -111,7 +111,10 @@ export default function AuthModal({
       setShowPassword(false);
       setShowConfirmPassword(false);
     }
-  }, [isOpen, initialMode, onClose, router]);
+    // onClose sengaja tidak dimasukkan ke dependency: di page.tsx ia berupa arrow function inline
+    // yang berubah setiap render, sehingga efek ini akan terus mereset mode & toggle password.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialMode]);
 
   // Berpindah antara form Masuk dan Daftar selalu mengembalikan toggle ke mata tertutup.
   useEffect(() => {
