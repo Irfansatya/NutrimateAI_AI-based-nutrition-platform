@@ -85,7 +85,7 @@ export default function HubungiKamiPage() {
 
           <Link
             href="/"
-            className="back-top bg-[#003223] text-white rounded-lg px-4 py-2 text-xs font-semibold hover:bg-[#00251a] hover:-translate-y-0.5 transition-all inline-flex items-center gap-1.5"
+            className="back-top bg-[#003223] text-white! rounded-lg px-4 py-2 text-xs font-semibold hover:bg-[#00251a] hover:-translate-y-0.5 transition-all inline-flex items-center gap-1.5"
           >
             ← Kembali
           </Link>

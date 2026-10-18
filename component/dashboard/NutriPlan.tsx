@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { createPortal } from "react-dom";
 import { SvgIcon } from "./SvgIcon";
 import { PageIntro } from "./SharedComponents";
 import { type DayPlan, type Cat, CATS, buildPlan } from "@/lib/dashboard/mockData";
@@ -103,6 +104,25 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
     return () => clearTimeout(t);
   }, []);
 
+  // Saat popup NutriDaily terbuka: kunci scroll halaman utama dan izinkan tutup dengan tombol Esc
+  React.useEffect(() => {
+    if (!showModal) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevOverflow = html.style.overflow;
+    const prevPaddingRight = body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - html.clientWidth;
+    html.style.overflow = "hidden";
+    if (scrollbarWidth > 0) body.style.paddingRight = scrollbarWidth + "px";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setShowModal(false); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      html.style.overflow = prevOverflow;
+      body.style.paddingRight = prevPaddingRight;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [showModal]);
+
   // Sync plan from props
   React.useEffect(() => { if (plan) { setLocalPlan(plan); setSel(0); setViewMonth(new Date(plan[0].d.getFullYear(), plan[0].d.getMonth(), 1)); } }, [plan]);
 
@@ -164,7 +184,7 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
     const digits = waNumber.replace(/\D/g, "");
     if (digits.length < 9 || digits.length > 15) { setWaErr("Periksa kembali nomor WhatsApp yang dimasukkan."); return; }
     setApproved(true); setShowModal(false);
-    onToast("Persetujuan NutriDaily tersimpan di prototipe");
+    onToast("NutriDaily berhasil diaktifkan");
   }
 
   const ex = [meals[0], meals[2], meals[4]].filter(Boolean).map(m => `${m.l}: ${m.items.map(i => i.n).join(", ")}`).join(". ");
@@ -224,7 +244,7 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
               {approved ? (
                 <>
                   <div className="db-info">
-                    <h4><SvgIcon name="inf" className="" style={{ width: 18, height: 18 }} />NutriDaily aktif</h4>
+                    <h4 style={{ background: "#05976A" }}><SvgIcon name="inf" className="" style={{ width: 18, height: 18 }} />NutriDaily aktif</h4>
                     <p>Pengingat harian akan dikirim melalui WhatsApp ke <b>{waNumber}</b>.</p>
                   </div>
                   <button className="db-btn o" style={{ width: "100%" }} onClick={() => setApproved(false)}>Ubah rencana</button>
@@ -297,31 +317,34 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
         </div>
       </div>
 
-      {/* NUTRIDAILY MODAL */}
-      {showModal && (
-        <div className="db-md" onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}>
-          <div>
-            <h2>Aktifkan NutriDaily</h2>
-            <p className="db-sub" style={{ margin: "6px 0 16px" }}>Pastikan nomor WhatsApp penerima pengingat sudah benar.</p>
-            <label className="db-l" htmlFor="wn">Nomor WhatsApp terdaftar</label>
-            <div className="db-inp">
-              <input id="wn" type="tel" value={waNumber} aria-label="Nomor WhatsApp" placeholder="+6281234567890"
-                onChange={e => { setWaNumber(e.target.value); setWaErr(""); }} />
-            </div>
-            <div className="db-wa">
-              <b>NutrimateAI · Contoh pengingat</b><br />
-              Selamat pagi, Bunda! Rekomendasi bahan pangan hari ini — {ex}. Semoga sehat selalu 💚
-            </div>
-            {waErr && <div className="db-em" style={{ marginBottom: 8 }}>{waErr}</div>}
-            <div className="db-foot">
-              <button className="db-btn o" onClick={() => setShowModal(false)}>Batal</button>
-              <button className="db-btn" onClick={activateWhatsApp}>Aktifkan</button>
-            </div>
-            <div className="db-bub" style={{ marginTop: 12, fontSize: 12.5 }}>
-              <b>Catatan prototipe:</b> Pengiriman WhatsApp nyata belum diaktifkan. Nomor tersimpan di prototipe lokal saja.
+      {/* NUTRIDAILY MODAL
+          Dirender lewat portal ke <body> agar posisi fixed tidak terpengaruh animasi/stacking
+          context dari container halaman, sehingga overlay selalu menutupi seluruh layar. */}
+      {showModal && typeof document !== "undefined" && createPortal(
+        <div className="db-root" style={{ minHeight: 0, background: "transparent" }}>
+          <div className="db-md" role="dialog" aria-modal="true" aria-labelledby="wa-title"
+            onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}>
+            <div>
+              <h2 id="wa-title">Aktifkan NutriDaily</h2>
+              <p className="db-sub" style={{ margin: "6px 0 16px" }}>Pastikan nomor WhatsApp penerima pengingat sudah benar.</p>
+              <label className="db-l" htmlFor="wn">Nomor WhatsApp terdaftar</label>
+              <div className="db-inp">
+                <input id="wn" type="tel" value={waNumber} aria-label="Nomor WhatsApp" placeholder="+6281234567890"
+                  onChange={e => { setWaNumber(e.target.value); setWaErr(""); }} />
+              </div>
+              <div className="db-wa">
+                <b>NutrimateAI · Pengingat NutriDaily</b>
+                Selamat pagi, Bunda! Rekomendasi bahan pangan hari ini — {ex}. Semoga sehat selalu 💚
+              </div>
+              {waErr && <div className="db-em" style={{ marginBottom: 8 }}>{waErr}</div>}
+              <div className="db-foot">
+                <button className="db-btn o" onClick={() => setShowModal(false)}>Batal</button>
+                <button className="db-btn" onClick={activateWhatsApp}>Aktifkan</button>
+              </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -35,6 +35,9 @@ const health: [string, string, Field[]] = ["Kondisi Kesehatan", "Riwayat dan kon
 const eko: [string, string, Field[]] = ["Kondisi Ekonomi", "Anggaran membantu AI memilih bahan yang terjangkau", [
   { k: "bud", l: "Anggaran makan bunda per hari", t: "bud" },
 ]];
+const ekoAnak: [string, string, Field[]] = ["Kondisi Ekonomi", "Anggaran membantu AI memilih bahan yang terjangkau", [
+  { k: "bud", l: "Anggaran makan anak per hari", t: "bud" },
+]];
 const env: [string, string, Field[]] = ["Lingkungan & Ketersediaan Pangan", "Bahan yang mudah diperoleh di sekitar tempat tinggal", [
   SL("prov", "Domisili (Provinsi)", PROVINCES),
   KX("pokok", "Makanan pokok", "Nasi|Jagung|Singkong|Sagu|Ubi|Kentang", "Tidak mengonsumsi"),
@@ -95,7 +98,7 @@ const SC: Record<Cat, Section[]> = {
       R("mp", "Apakah anak sudah mendapat MPASI?", ["Sudah", "Belum"]),
       { ...R("fmx", "Frekuensi makan", ["1–2x sehari", "3x sehari", "4x sehari", "5x atau lebih"]), if: (d) => d.mp === "Sudah" },
     ], "ASI & MPASI"],
-    eko, env,
+    ekoAnak, env,
     ["Kebiasaan & Kemampuan Makan", "", [
       K("tx", "Tekstur makanan yang sudah dapat diterima", ["Halus (puree)", "Saring kasar", "Cincang", "Finger food", "Makanan keluarga"]),
       T("tk", "Bahan makanan yang tidak disukai/dihindari", "area", "Contoh: hati ayam, bayam", 0),
@@ -351,14 +354,6 @@ function GrowthChart({ cat, rows, mode }: { cat: Cat; rows: GrowthRecord[]; mode
   );
 }
 
-// ===== SAMPLE GROWTH =====
-function makeSampleGrowth(cat: Cat): GrowthRecord[] {
-  const n = new Date(), y = n.getFullYear() * 12 + n.getMonth();
-  if (cat === "hamil") return [{ x: 12, bb: 56.5, tb: 158, bb0: 55 }, { x: 17, bb: 58.7, tb: 158, bb0: 55 }, { x: 22, bb: 61, tb: 158, bb0: 55 }, { x: 26, bb: 62.8, tb: 158, bb0: 55 }].map((r, i, a) => ({ ...r, ym: y - (a.length - 1 - i) }));
-  if (cat === "menyusui") return [{ x: 1, bb: 62, tb: 160, bb0: 58 }, { x: 2, bb: 61.2, tb: 160, bb0: 58 }, { x: 3, bb: 60.4, tb: 160, bb0: 58 }, { x: 4, bb: 59.8, tb: 160, bb0: 58 }].map((r, i, a) => ({ ...r, ym: y - (a.length - 1 - i) }));
-  return [{ x: 8, bb: 7.9, tb: 68.9, jk: "P" as const }, { x: 9, bb: 8.2, tb: 70.3, jk: "P" as const }, { x: 10, bb: 8.4, tb: 71.6, jk: "P" as const }, { x: 11, bb: 8.7, tb: 72.8, jk: "P" as const }].map((r, i, a) => ({ ...r, ym: y - (a.length - 1 - i) }));
-}
-
 // ===== GROWTH ANALYSIS =====
 interface AnalysisResult { r: GrowthRecord; st: [string, string]; n: string[]; ev: string; el: string; es: string; }
 
@@ -429,7 +424,6 @@ export default function NutriCheck({
   const [errors, setErrors] = React.useState<string[]>([]);
   const [ckTab, setCkTab] = React.useState<"form" | "growth">("form");
   const [growthMode, setGrowthMode] = React.useState<"bb" | "tb">("bb");
-  const [showDemo, setShowDemo] = React.useState(false);
   const [showAiWait, setShowAiWait] = React.useState(false);
   // 0 = menyiapkan rekomendasi, 1 = rekomendasi siap, 2 = loading singkat sebelum pindah ke NutriPlan
   const [aiPhase, setAiPhase] = React.useState<0 | 1 | 2>(0);
@@ -510,7 +504,7 @@ export default function NutriCheck({
     }
   }
 
-  const growthRows = growth[cat].length ? growth[cat] : (showDemo ? makeSampleGrowth(cat) : []);
+  const growthRows = growth[cat];
 
   if (ckTab === "growth") {
     const analysis = analyzeGrowth(cat, growthRows);
@@ -541,17 +535,10 @@ export default function NutriCheck({
             <p className="db-sub" style={{ marginTop: 8 }}>Berat dan tinggi badan dari form NutriCheck akan tercatat otomatis setiap bulan, lalu dianalisis menjadi grafik dan catatan kondisi.</p>
             <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 20 }}>
               <button className="db-btn" onClick={() => setCkTab("form")}>Isi data sekarang</button>
-              <button className="db-btn o" onClick={() => setShowDemo(true)}>Lihat contoh tampilan</button>
             </div>
           </div>
         ) : (
           <div>
-            {showDemo && !growth[cat].length && (
-              <div className="db-banner" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                Ini data contoh untuk melihat tampilan fitur. Data asli muncul setelah Anda mengisi NutriCheck.
-                <button className="db-btn sm o" onClick={() => setShowDemo(false)}>Sembunyikan contoh</button>
-              </div>
-            )}
             <div className="db-gtop">
               <h2>Ringkasan bulan terbaru</h2>
               <button className="db-btn sm" onClick={() => { setCkTab("form"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Perbarui data bulan ini</button>

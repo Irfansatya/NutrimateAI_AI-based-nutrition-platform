@@ -4,6 +4,65 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { registerUser, authenticateUser, saveUserSession } from "@/lib/user/session";
 
+/* Ikon mata untuk tombol lihat/sembunyikan kata sandi */
+function EyeIcon() {
+  return (
+    <svg
+      className="w-[18px] h-[18px]"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg
+      className="w-[18px] h-[18px]"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  );
+}
+
+interface PasswordToggleProps {
+  visible: boolean;
+  onToggle: () => void;
+}
+
+/* Default: mata tertutup (kata sandi tersembunyi). Klik: mata terbuka (kata sandi terlihat). */
+function PasswordToggle({ visible, onToggle }: PasswordToggleProps) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={visible ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+      aria-pressed={visible}
+      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1 flex items-center justify-center transition-colors"
+    >
+      {visible ? <EyeIcon /> : <EyeOffIcon />}
+    </button>
+  );
+}
+
 interface AuthModalProps {
   isOpen: boolean;
   initialMode?: "signin" | "signup";
@@ -47,6 +106,12 @@ export default function AuthModal({
       setShowConfirmPassword(false);
     }
   }, [isOpen, initialMode]);
+
+  // Berpindah antara form Masuk dan Daftar selalu mengembalikan toggle ke mata tertutup.
+  useEffect(() => {
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+  }, [mode]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -305,13 +370,10 @@ export default function AuthModal({
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full h-10 px-3 pr-10 rounded-lg border border-neutral-200 text-xs sm:text-[13px] outline-none focus:border-[#05976A] focus:ring-2 focus:ring-[#05976A]/10 transition-all"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1"
-                    >
-                      {showPassword ? "👁️" : "👁️‍🗨️"}
-                    </button>
+                    <PasswordToggle
+                      visible={showPassword}
+                      onToggle={() => setShowPassword((v) => !v)}
+                    />
                   </div>
 
                   {/* Password rules pills */}
@@ -339,13 +401,10 @@ export default function AuthModal({
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full h-10 px-3 pr-10 rounded-lg border border-neutral-200 text-xs sm:text-[13px] outline-none focus:border-[#05976A] focus:ring-2 focus:ring-[#05976A]/10 transition-all"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1"
-                    >
-                      {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
-                    </button>
+                    <PasswordToggle
+                      visible={showConfirmPassword}
+                      onToggle={() => setShowConfirmPassword((v) => !v)}
+                    />
                   </div>
                 </div>
 
@@ -392,7 +451,7 @@ export default function AuthModal({
                     <label className="text-xs font-semibold text-neutral-700">Kata Sandi</label>
                     <button
                       type="button"
-                      onClick={() => showToastMsg("Fitur pemulihan kata sandi akan aktif pada integrasi server.")}
+                      onClick={() => showToastMsg("Fitur pemulihan kata sandi segera hadir.")}
                       className="text-[11px] text-[#07543f] hover:underline"
                     >
                       Lupa kata sandi?
@@ -407,13 +466,10 @@ export default function AuthModal({
                       onChange={(e) => setSigninPassword(e.target.value)}
                       className="w-full h-10 px-3 pr-10 rounded-lg border border-neutral-200 text-xs sm:text-[13px] outline-none focus:border-[#05976A] focus:ring-2 focus:ring-[#05976A]/10 transition-all"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1"
-                    >
-                      {showPassword ? "👁️" : "👁️‍🗨️"}
-                    </button>
+                    <PasswordToggle
+                      visible={showPassword}
+                      onToggle={() => setShowPassword((v) => !v)}
+                    />
                   </div>
                 </div>
 

@@ -1,10 +1,13 @@
 "use client";
 import React from "react";
 import { SvgIcon } from "./SvgIcon";
-import { PageIntro } from "./SharedComponents";
-import { type Campaign } from "@/lib/dashboard/mockData";
+import { BankSelect, BANKS } from "./BankSelect";
+import type { MyCampaign, Withdrawal } from "@/lib/dashboard/campaign";
 
 const rpx = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID");
+
+const MIN_WITHDRAW = 50000;
+const PROCESS_NOTICE = "Penarikan dana sedang diproses dan akan dicairkan dalam 1–2 hari kerja.";
 
 interface LedgerEntry {
   id: string;
@@ -12,48 +15,74 @@ interface LedgerEntry {
   amt: number;
   ts: number;
   desc: string;
-  camp?: string;
+  pending?: boolean;
 }
 
-const SAMPLE_LEDGER: LedgerEntry[] = [
-  { id: "tx1", t: "in", amt: 100000, ts: Date.now() - 3600000 * 2, desc: "Donasi dari Budi S." },
-  { id: "tx2", t: "in", amt: 50000, ts: Date.now() - 3600000 * 12, desc: "Donasi dari Anonim" },
-  { id: "tx3", t: "in", amt: 25000, ts: Date.now() - 3600000 * 36, desc: "Donasi dari Dewi L." },
-];
-
-const BANKS = ["BCA", "Mandiri", "BNI", "BRI", "BSI", "CIMB Niaga", "Permata", "Lainnya"];
-
 interface NutriWalletProps {
-  myCampaign: Campaign | null;
+  myCampaign: MyCampaign | null;
+  withdrawals: Withdrawal[];
+  onWithdraw: (w: Withdrawal) => void;
   onToast: (msg: string) => void;
 }
 
-export default function NutriWallet({ myCampaign, onToast }: NutriWalletProps) {
-  const [ledger, setLedger] = React.useState<LedgerEntry[]>(SAMPLE_LEDGER);
+export default function NutriWallet({ myCampaign, withdrawals, onWithdraw, onToast }: NutriWalletProps) {
   const [showWdModal, setShowWdModal] = React.useState(false);
   const [bank, setBank] = React.useState("");
-  const [bankx, setBankx] = React.useState("");
   const [acct, setAcct] = React.useState("");
   const [name, setName] = React.useState("");
   const [amt, setAmt] = React.useState("");
   const [errs, setErrs] = React.useState<Record<string, string>>({});
 
-  const inn = ledger.filter(e => e.t === "in");
-  const out = ledger.filter(e => e.t === "out");
-  const live = !!myCampaign && myCampaign.status === "disetujui";
-  const total = inn.reduce((a, e) => a + e.amt, 0);
-  const held = live && myCampaign ? inn.filter(e => e.camp === myCampaign.id).reduce((a, e) => a + e.amt, 0) : 0;
-  const wd = out.reduce((a, e) => a + e.amt, 0);
+  // Dana masuk berasal dari donasi pada open donasi milik pengguna
+  const donors = React.useMemo(() => myCampaign?.donors ?? [], [myCampaign]);
+  const total = donors.reduce((a, d) => a + d.amt, 0);
+  const running = myCampaign?.status === "berjalan";
+  const held = running ? total : 0;
+  const wd = withdrawals.reduce((a, w) => a + w.amt, 0);
   const avail = Math.max(0, total - held - wd);
+  const canWithdraw = avail >= MIN_WITHDRAW;
+
+  const ledger = React.useMemo<LedgerEntry[]>(() => {
+    const inn: LedgerEntry[] = donors.map((d, i) => ({
+      id: `in_${i}_${d.ts}`,
+      t: "in",
+      amt: d.amt,
+      ts: d.ts,
+      desc: `Donasi dari ${d.n}`,
+    }));
+    const out: LedgerEntry[] = withdrawals.map((w) => ({
+      id: w.id,
+      t: "out",
+      amt: w.amt,
+      ts: w.ts,
+      desc: `Penarikan ke ${w.bank} ${w.acctMasked} a.n. ${w.name}`,
+      pending: w.status === "diproses",
+    }));
+    return [...inn, ...out].sort((a, b) => b.ts - a.ts);
+  }, [donors, withdrawals]);
+
+  const pendingList = withdrawals.filter((w) => w.status === "diproses");
+  const pendingTotal = pendingList.reduce((a, w) => a + w.amt, 0);
+
+  React.useEffect(() => {
+    if (!showWdModal) return;
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") setShowWdModal(false); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [showWdModal]);
+
+  function openModal() {
+    setBank(""); setAcct(""); setName(""); setAmt(""); setErrs({});
+    setShowWdModal(true);
+  }
 
   function validateWd() {
     const err: Record<string, string> = {};
     if (!bank) err.bank = "Pilih bank tujuan";
-    if (bank === "Lainnya" && bankx.trim().length < 2) err.bankx = "Isi nama bank";
-    if (acct.trim().length < 8) err.acct = "Nomor rekening minimal 8 digit";
+    if (acct.length < 8 || acct.length > 16) err.acct = "Nomor rekening harus 8–16 digit";
     if (name.trim().length < 2) err.name = "Isi nama pemilik rekening sesuai buku tabungan";
     const a = Number(amt);
-    if (!a || a < 50000) err.amt = "Penarikan minimal Rp 50.000";
+    if (!a || a < MIN_WITHDRAW) err.amt = `Penarikan minimal ${rpx(MIN_WITHDRAW)}`;
     else if (a > avail) err.amt = "Saldo dapat ditarik tidak mencukupi";
     return err;
   }
@@ -62,32 +91,50 @@ export default function NutriWallet({ myCampaign, onToast }: NutriWalletProps) {
     const v = validateWd();
     setErrs(v);
     if (Object.keys(v).length) return;
-    const a = Number(amt);
-    const newTx: LedgerEntry = {
-      id: "tx_" + Date.now(),
-      t: "out",
-      amt: a,
+    const b = BANKS.find((x) => x.id === bank);
+    onWithdraw({
+      id: "wd_" + Date.now(),
+      amt: Number(amt),
       ts: Date.now(),
-      desc: `Penarikan ke ${bank === "Lainnya" ? bankx : bank} - ${acct} a.n. ${name}`,
-    };
-    setLedger(l => [newTx, ...l]);
+      bank: b ? b.name : bank,
+      acctMasked: "•••• " + acct.slice(-4),
+      name: name.trim(),
+      status: "diproses",
+    });
     setShowWdModal(false);
-    setBank(""); setBankx(""); setAcct(""); setName(""); setAmt("");
-    onToast("Permintaan penarikan dicatat di prototipe");
+    onToast(PROCESS_NOTICE);
   }
 
   return (
     <div>
-      <PageIntro page="wallet" />
       {/* WALLET HEADER */}
       <div className="db-nh-wh">
-        <small>Total Saldo Bantuan Masuk</small>
+        <small>Saldo dapat ditarik</small>
         <div className="big">{rpx(avail)}</div>
-        <p>Dana yang sudah terkumpul dari open donasi yang disetujui. Dapat ditarik ke rekening terverifikasi atas nama pemohon.</p>
-        <button className="db-btn" onClick={() => setShowWdModal(true)}>
+        <p>Dana dari donasi yang masuk ke open donasi Anda. Dana yang masih tertahan akan tersedia setelah open donasi selesai. Pencairan dilakukan ke rekening atas nama pemohon.</p>
+        <button type="button" className="db-btn" onClick={openModal} disabled={!canWithdraw}>
           <SvgIcon name="wallet" className="db-ic" /> Tarik dana
         </button>
+        {!canWithdraw && (
+          <p style={{ marginTop: 10, fontSize: 13, opacity: 0.85 }}>
+            Penarikan dapat dilakukan saat saldo minimal {rpx(MIN_WITHDRAW)}.
+          </p>
+        )}
       </div>
+
+      {pendingList.length > 0 && (
+        <div className="db-nh-notice" role="status">
+          <SvgIcon name="clock" className="" style={{ width: 20, height: 20 }} />
+          <div>
+            <b>
+              {pendingList.length === 1
+                ? `Penarikan ${rpx(pendingList[0].amt)} ke ${pendingList[0].bank} ${pendingList[0].acctMasked}`
+                : `${pendingList.length} permohonan penarikan (${rpx(pendingTotal)})`}
+            </b>
+            <span>{PROCESS_NOTICE}</span>
+          </div>
+        </div>
+      )}
 
       <div className="db-nh-wcols">
         {/* STATS */}
@@ -96,12 +143,9 @@ export default function NutriWallet({ myCampaign, onToast }: NutriWalletProps) {
           <div className="db-sum" style={{ border: 0, padding: 0 }}>
             <div>Total dana masuk<b>{rpx(total)}</b></div>
             <div>Dana tertahan (open donasi berjalan)<b>{rpx(held)}</b></div>
-            <div>Total sudah ditarik<b>{rpx(wd)}</b></div>
+            <div>Total penarikan<b>{rpx(wd)}</b></div>
             <div>Saldo dapat ditarik<b style={{ color: "var(--g)" }}>{rpx(avail)}</b></div>
-            <div>Total donatur<b>{inn.length}</b></div>
-          </div>
-          <div className="db-nh-proto" style={{ marginTop: 14 }}>
-            <b>Catatan prototipe:</b> NutriWallet bersifat simulasi frontend. Tidak terhubung ke rekening atau payment gateway nyata.
+            <div>Total donatur<b>{donors.length}</b></div>
           </div>
         </div>
 
@@ -112,14 +156,17 @@ export default function NutriWallet({ myCampaign, onToast }: NutriWalletProps) {
             <div className="db-nh-emptyline">Belum ada transaksi.</div>
           ) : (
             <div>
-              {ledger.map(tx => (
+              {ledger.map((tx) => (
                 <div key={tx.id} className="db-nh-tx">
                   <span className={`ti${tx.t === "out" ? " out" : ""}`}>
                     <SvgIcon name={tx.t === "out" ? "up" : "down"} className="" style={{ width: 18, height: 18 }} />
                   </span>
                   <div>
                     <b>{tx.desc}</b>
-                    <small>{new Date(tx.ts).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</small>
+                    <small>
+                      {new Date(tx.ts).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      {tx.pending && <i className="db-badge info db-nh-mini">Diproses</i>}
+                    </small>
                   </div>
                   <strong className={tx.t === "in" ? "in" : ""}>
                     {tx.t === "in" ? "+" : "−"}{rpx(tx.amt)}
@@ -133,50 +180,50 @@ export default function NutriWallet({ myCampaign, onToast }: NutriWalletProps) {
 
       {/* WITHDRAW MODAL */}
       {showWdModal && (
-        <div className="db-md" onClick={e => { if (e.target === e.currentTarget) setShowWdModal(false); }}>
-          <div style={{ maxWidth: 460 }}>
+        <div className="db-md" onClick={(e) => { if (e.target === e.currentTarget) setShowWdModal(false); }}>
+          <div role="dialog" aria-modal="true" aria-label="Tarik dana bantuan" style={{ maxWidth: 460 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <h2 style={{ fontSize: 18, fontWeight: 600 }}>Tarik dana bantuan</h2>
-              <button onClick={() => setShowWdModal(false)} style={{ fontSize: 22, color: "var(--s)" }}>×</button>
+              <button type="button" onClick={() => setShowWdModal(false)} aria-label="Tutup" style={{ fontSize: 22, color: "var(--s)" }}>×</button>
             </div>
             <p style={{ color: "var(--s)", fontSize: 14, marginBottom: 14 }}>Saldo dapat ditarik: <b>{rpx(avail)}</b></p>
-            <div className="db-pfield">
+
+            <div className={`db-pfield${errs.bank ? " db-err" : ""}`}>
               <label className="db-l" htmlFor="wd_b">Bank tujuan</label>
-              <div className="db-inp">
-                <select id="wd_b" value={bank} onChange={e => setBank(e.target.value)}>
-                  <option value="">Pilih bank...</option>
-                  {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
+              <BankSelect id="wd_b" value={bank} onChange={setBank} />
               {errs.bank && <div className="db-em">{errs.bank}</div>}
             </div>
-            {bank === "Lainnya" && (
-              <div className="db-pfield">
-                <label className="db-l" htmlFor="wd_bx">Nama bank lainnya</label>
-                <div className="db-inp"><input id="wd_bx" value={bankx} placeholder="Contoh: Bank Jago" onChange={e => setBankx(e.target.value)} /></div>
-                {errs.bankx && <div className="db-em">{errs.bankx}</div>}
-              </div>
-            )}
-            <div className="db-pfield">
+            <div className={`db-pfield${errs.acct ? " db-err" : ""}`}>
               <label className="db-l" htmlFor="wd_ac">Nomor rekening</label>
-              <div className="db-inp"><input id="wd_ac" type="number" value={acct} placeholder="1234567890" onChange={e => setAcct(e.target.value)} /></div>
+              <div className="db-inp">
+                <input id="wd_ac" inputMode="numeric" autoComplete="off" value={acct} placeholder="Masukkan nomor rekening"
+                  onChange={(e) => setAcct(e.target.value.replace(/\D/g, "").slice(0, 16))} />
+              </div>
               {errs.acct && <div className="db-em">{errs.acct}</div>}
             </div>
-            <div className="db-pfield">
+            <div className={`db-pfield${errs.name ? " db-err" : ""}`}>
               <label className="db-l" htmlFor="wd_nm">Nama pemilik rekening</label>
-              <div className="db-inp"><input id="wd_nm" value={name} placeholder="Nama sesuai buku tabungan" onChange={e => setName(e.target.value)} /></div>
+              <div className="db-inp">
+                <input id="wd_nm" value={name} maxLength={80} placeholder="Nama sesuai buku tabungan" onChange={(e) => setName(e.target.value)} />
+              </div>
               {errs.name && <div className="db-em">{errs.name}</div>}
             </div>
-            <div className="db-pfield">
-              <label className="db-l" htmlFor="wd_am">Nominal penarikan</label>
-              <div className="db-inp"><span>Rp</span><input id="wd_am" type="number" min="50000" step="10000" value={amt} placeholder="50.000" onChange={e => setAmt(e.target.value)} /></div>
+            <div className={`db-pfield${errs.amt ? " db-err" : ""}`}>
+              <div className="db-nh-lrow">
+                <label className="db-l" htmlFor="wd_am">Nominal penarikan</label>
+                <button type="button" className="db-nh-link" onClick={() => setAmt(String(avail))}>Tarik semua saldo</button>
+              </div>
+              <div className="db-inp">
+                <span>Rp</span>
+                <input id="wd_am" inputMode="numeric" autoComplete="off" value={amt ? Number(amt).toLocaleString("id-ID") : ""} placeholder="50.000"
+                  onChange={(e) => setAmt(e.target.value.replace(/\D/g, "").slice(0, 12))} />
+              </div>
               {errs.amt && <div className="db-em">{errs.amt}</div>}
             </div>
             <div className="db-foot">
-              <button className="db-btn o" onClick={() => setShowWdModal(false)}>Batal</button>
-              <button className="db-btn" onClick={submitWd}>Kirim permohonan</button>
+              <button type="button" className="db-btn o" onClick={() => setShowWdModal(false)}>Batal</button>
+              <button type="button" className="db-btn" onClick={submitWd}>Kirim permohonan</button>
             </div>
-            <span className="db-nh-proto" style={{ marginTop: 12 }}>Prototipe: penarikan dana bersifat simulasi dan tidak memotong dana riil.</span>
           </div>
         </div>
       )}

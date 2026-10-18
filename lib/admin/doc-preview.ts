@@ -14,7 +14,7 @@ export const openDocPreview = (name: any) => {
     name
   )}</title><style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:#3B3F44;color:#121517;min-height:100vh}.bar{background:#121517;color:#fff;padding:14px 22px;display:flex;justify-content:space-between;gap:12px;font-size:14px}.bar span{color:#9AA3AE}main{display:grid;place-items:center;padding:28px 16px}.ph{background:#E9ECF1;width:min(760px,100%);aspect-ratio:4/3;border-radius:6px;display:grid;place-content:center;justify-items:center;gap:10px;text-align:center}.ph span{color:#6B7280;font-size:14px}.pa{background:#fff;width:min(700px,100%);min-height:900px;padding:56px 60px;border-radius:4px}.pa h1{font-size:22px;margin:0 0 30px}.pa i{display:block;height:10px;background:#E3E6EC;border-radius:3px;margin:0 0 16px}</style></head><body><div class="bar"><b>${esc(
     name
-  )}</b><span>Pratinjau contoh. Berkas asli tampil di sini setelah terhubung ke penyimpanan.</span></div><main>${bodyContent}</main></body></html>`;
+  )}</b><span>Pratinjau dokumen</span></div><main>${bodyContent}</main></body></html>`;
 
   const blob = new Blob([html], { type: 'text/html' });
   const url = URL.createObjectURL(blob);

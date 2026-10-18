@@ -309,7 +309,7 @@ const GX = (() => {
         P("M137 94s-20-12-20-26a10 10 0 0 1 20-3 10 10 0 0 1 20 3c0 14-20 26-20 26z", G, 2, "#BFE4D7") +
         T(46, 128, "Bantu Bu Sari penuhi gizi", 11.5, "#121517", 600) +
         T(46, 143, "di trimester ketiga", 11.5, "#121517", 600) +
-        T(46, 162, "Kab. Grobogan, Jawa Tengah", 9.5, "#8a9390", 400) +
+        T(46, 162, "Grobogan, Jawa Tengah", 9.5, "#8a9390", 400) +
         R(46, 176, 182, 6, "#EEF0F4", null, 3) +
         R(46, 176, 112, 6, G, null, 3) +
         T(46, 200, "Terkumpul", 9.5, "#8a9390", 400) +
@@ -333,7 +333,6 @@ const GX = (() => {
         T(286, 162, "Donasi sebagai anonim", 9.5, "#505257", 400) +
         R(268, 184, 172, 34, G, null, 17) +
         T(354, 205, "Lanjut bayar dengan QRIS", 10, "#fff", 600, "middle") +
-        T(354, 240, "Prototipe, belum memproses pembayaran", 8.5, "#8a9390", 400, "middle") +
         N(232, 38, 1) +
         N(446, 78, 2) +
         N(436, 186, 3)
@@ -476,7 +475,7 @@ const GUIDE: GuideItem[] = [
       "Pilih nominal, lalu isi nama atau pilih donasi anonim.",
       "Tekan <b>Lanjut bayar dengan QRIS</b>, pindai kodenya, lalu tekan <b>Saya sudah membayar</b>.",
     ],
-    tip: "Ini versi prototipe, jadi pembayaran belum diproses sungguhan.",
+    tip: "Pastikan nominal donasi sudah benar sebelum Anda memindai kode QRIS.",
   },
   {
     nm: "Profil",

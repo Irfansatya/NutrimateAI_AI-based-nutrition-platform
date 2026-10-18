@@ -13,6 +13,10 @@ interface PingPongVideoProps {
 /**
  * Background video: otomatis diputar, diperlambat, dan saat mencapai akhir
  * diputar mundur sampai awal, lalu maju lagi (infinite). Tanpa kontrol apa pun.
+ *
+ * Putar mundur dilakukan dengan menggeser currentTime tiap frame. Seek baru
+ * hanya dikirim setelah seek sebelumnya selesai ("seeked"), supaya browser
+ * tidak menumpuk antrean seek dan gambar tidak patah-patah.
  */
 export default function PingPongVideo({
   src,
@@ -28,7 +32,9 @@ export default function PingPongVideo({
 
     let rafId = 0;
     let lastTs = 0;
+    let pos = 0; // posisi (detik) saat memutar mundur
     let reversing = false;
+    let seeking = false;
     let cancelled = false;
 
     const playForward = () => {
@@ -44,13 +50,20 @@ export default function PingPongVideo({
       const delta = (ts - lastTs) / 1000;
       lastTs = ts;
 
-      const next = video.currentTime - delta * playbackRate;
-      if (next <= 0.03) {
+      // Waktu tetap berjalan walau seek sebelumnya belum selesai,
+      // sehingga kecepatan mundur sama dengan kecepatan maju.
+      pos -= delta * playbackRate;
+
+      if (pos <= 0.03) {
         video.currentTime = 0;
         playForward();
         return;
       }
-      video.currentTime = next;
+
+      if (!seeking) {
+        seeking = true;
+        video.currentTime = pos;
+      }
       rafId = requestAnimationFrame(reverseStep);
     };
 
@@ -58,8 +71,13 @@ export default function PingPongVideo({
       if (reversing || cancelled) return;
       reversing = true;
       lastTs = 0;
+      pos = video.currentTime;
       video.pause();
       rafId = requestAnimationFrame(reverseStep);
+    };
+
+    const handleSeeked = () => {
+      seeking = false;
     };
 
     const handleEnded = () => startReverse();
@@ -80,6 +98,7 @@ export default function PingPongVideo({
     video.playbackRate = playbackRate;
     video.addEventListener("ended", handleEnded);
     video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("seeked", handleSeeked);
 
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
@@ -91,6 +110,7 @@ export default function PingPongVideo({
       cancelAnimationFrame(rafId);
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.removeEventListener("seeked", handleSeeked);
     };
   }, [playbackRate]);
 

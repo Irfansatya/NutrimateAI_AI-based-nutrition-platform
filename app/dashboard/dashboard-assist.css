@@ -1,0 +1,133 @@
+/* ===== NutriAssist: popup donasi, kartu QRIS, dan riwayat donasi ===== */
+
+/* ---------- Popup donasi ----------
+   Kartu popup tidak lagi menjadi elemen yang di-scroll. Scroll dipindah ke dalam
+   (.db-dn-scroll) sehingga scrollbar berada di dalam popup dan tidak menutupi sudut membulat. */
+.db-md.db-dn-md > div.db-dn-card {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: min(440px, 100%);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(16, 24, 40, .22);
+}
+.db-dn-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 26px;
+  scrollbar-width: thin;
+  scrollbar-color: #CBD3CE transparent;
+}
+.db-dn-scroll::-webkit-scrollbar { width: 10px; }
+.db-dn-scroll::-webkit-scrollbar-track { background: transparent; margin: 16px 0; }
+.db-dn-scroll::-webkit-scrollbar-thumb {
+  background: #CBD3CE; border-radius: 999px; border: 3px solid #fff;
+}
+.db-dn-scroll::-webkit-scrollbar-thumb:hover { background: #AEB9B3; }
+
+.db-dn-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.db-dn-head h2 { font-size: 20px; font-weight: 600; }
+.db-dn-x {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--s); font-size: 22px; line-height: 1; transition: background .15s;
+}
+.db-dn-x:hover { background: var(--f); }
+.db-dn-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.db-dn-actions .db-btn { width: 100%; }
+
+/* ---------- Kartu QRIS ---------- */
+.db-qris {
+  width: 268px; max-width: 100%; margin: 0 auto 14px; background: #fff;
+  border: 1px solid #E3E6EC; border-radius: 16px; overflow: hidden;
+  box-shadow: 0 6px 22px rgba(16, 24, 40, .08);
+}
+.db-qris-head {
+  background: #D71920; color: #fff; padding: 10px 14px; text-align: left;
+  display: flex; align-items: center; gap: 10px;
+}
+.db-qris-head b { font-size: 22px; font-weight: 800; letter-spacing: 1px; line-height: 1; }
+.db-qris-head span { font-size: 9.5px; line-height: 1.3; opacity: .92; text-align: left; }
+.db-qris-merchant {
+  padding: 12px 14px 0; font-size: 13px; font-weight: 700; letter-spacing: .6px;
+  color: #121517; text-align: center;
+}
+.db-qris svg { display: block; width: 100%; height: auto; padding: 4px 10px 6px; }
+.db-qris-foot {
+  padding: 8px 14px 12px; font-size: 10.5px; line-height: 1.45; color: #6B7280;
+  text-align: center; border-top: 1px dashed #E3E6EC; margin-top: 2px;
+}
+
+.db-dn-steps { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; font-size: 14px; color: var(--s); text-align: left; }
+.db-dn-steps li { display: flex; gap: 10px; align-items: flex-start; }
+.db-dn-steps li b {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--gl); color: var(--g);
+  display: grid; place-items: center; font-size: 12px; flex: none; margin-top: 1px;
+}
+.db-dn-timer {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; border-radius: 999px;
+  background: #FFF4E5; color: #B54708; font-weight: 600; font-size: 14px; margin-bottom: 12px;
+}
+.db-dn-timer.off { background: #FEECEB; color: #B42318; }
+
+/* ---------- Loading verifikasi ---------- */
+.db-dn-wait { text-align: center; padding: 26px 0 14px; }
+.db-dn-wait h2 { font-size: 19px; font-weight: 600; margin-bottom: 8px; }
+.db-dn-wait p { color: var(--s); line-height: 1.6; font-size: 14px; }
+.db-dn-load { height: 4px; border-radius: 4px; background: #dcefe7; overflow: hidden; margin-top: 20px; }
+.db-dn-load i {
+  display: block; height: 100%; background: #05976A; transform-origin: left; transform: scaleX(0);
+  animation: dbDnLoad 3s linear forwards;
+}
+@keyframes dbDnLoad { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* ---------- Layar terima kasih ---------- */
+.db-dn-ref {
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+  margin-top: 14px; padding: 8px 12px; border-radius: 10px; background: var(--f);
+  font-size: 13px; color: var(--s);
+}
+.db-dn-ref b { color: var(--t); font-weight: 600; letter-spacing: .3px; }
+
+/* ---------- Tab Donasi Saya ---------- */
+.db-dn-histhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.db-dn-histhead span { color: var(--s); font-size: 13px; }
+.db-dn-item { display: flex; gap: 14px; align-items: flex-start; padding: 18px 0; border-top: 1px solid #EEF0F3; }
+.db-dn-item:first-of-type { border-top: 0; }
+.db-dn-ico {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none;
+  background: var(--gl); color: var(--g);
+}
+.db-dn-ico svg { width: 19px; height: 19px; }
+.db-dn-main { flex: 1; min-width: 0; }
+.db-dn-main > b { display: block; font-weight: 600; font-size: 15px; line-height: 1.4; }
+.db-dn-meta { color: var(--s); font-size: 13px; margin-top: 3px; line-height: 1.55; }
+.db-dn-note { margin-top: 9px; padding: 9px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+.db-dn-note.warn { background: #FFF8EC; color: #93400D; }
+.db-dn-note.ok { background: var(--gl); color: #04684A; }
+.db-dn-note.bad { background: #FEF3F2; color: #B42318; }
+.db-dn-side { display: grid; gap: 8px; justify-items: end; flex: none; text-align: right; }
+.db-dn-amt { font-weight: 600; white-space: nowrap; }
+.db-dn-empty { text-align: center; padding: 48px 16px 40px; }
+.db-dn-empty .ico {
+  width: 64px; height: 64px; border-radius: 50%; background: var(--gl); color: var(--g);
+  display: grid; place-items: center; margin: 0 auto 14px;
+}
+.db-dn-empty .ico svg { width: 30px; height: 30px; }
+.db-dn-empty h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+.db-dn-empty p { color: var(--s); font-size: 14px; line-height: 1.6; max-width: 380px; margin: 0 auto 16px; }
+
+@media (max-width: 560px) {
+  .db-dn-scroll { padding: 20px; }
+  .db-dn-item { flex-wrap: wrap; }
+  .db-dn-main { flex-basis: calc(100% - 54px); }
+  .db-dn-side { width: 100%; grid-auto-flow: column; justify-content: space-between; align-items: center; padding-left: 54px; text-align: left; }
+  .db-dn-actions { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .db-dn-load i { animation-duration: 3s; }
+}

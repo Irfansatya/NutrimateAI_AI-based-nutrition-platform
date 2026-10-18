@@ -1,5 +1,7 @@
-// Mock data untuk Dashboard NutriMate AI (frontend prototype)
-// Semua data ini adalah simulasi. Tidak ada koneksi ke backend, AI, atau WhatsApp nyata.
+// Data awal Dashboard NutriMate AI.
+// Ganti dengan data dari backend saat API tersedia.
+
+import type { DonationRecord } from "./campaign";
 
 export const MOCK_USER = {
   name: "Irfan Satya",
@@ -157,7 +159,7 @@ export function buildPlan(cat:Cat,budget:number,excludeWords:string[],seed:numbe
   return days;
 }
 
-// ===== NUTRIASSIST MOCK CAMPAIGNS =====
+// ===== NUTRIASSIST: OPEN DONASI =====
 export interface Donor { n:string; amt:number; msg:string; ts:number; }
 export interface Campaign {
   id:string; owner:'other'|'me'; cat:Cat; nama:string; kota:string;
@@ -187,30 +189,38 @@ function mk(id:string,cat:Cat,nama:string,kota:string,judul:string,story:string,
 }
 
 export const SAMPLE_CAMPAIGNS:Campaign[]=[
-  mk('s1','hamil','Ibu Sari (30 minggu)','Kab. Grobogan, Jawa Tengah',
+  mk('s1','hamil','Ibu Sari','Grobogan, Jawa Tengah',
     'Bantu Bu Sari penuhi gizi di trimester ketiga',
     'Bu Sari (29) sedang hamil 30 minggu. Suaminya bekerja sebagai buruh tani dengan penghasilan tidak tetap. Bidan menganjurkan Bu Sari menambah asupan protein dan zat besi, tetapi penghasilan keluarga belum cukup untuk membeli bahan makanan bergizi setiap hari.',
     [{n:'Telur ayam',q:'6 kg',c:180000},{n:'Ikan lele',q:'5 kg',c:150000},{n:'Hati ayam',q:'2 kg',c:70000},{n:'Tempe dan tahu',q:'2 bulan',c:120000},{n:'Bayam dan daun kelor',q:'40 ikat',c:80000}],.72,21,1),
-  mk('s2','anak','Raka (11 bulan)','Kab. Demak, Jawa Tengah',
+  mk('s2','anak','Raka','Demak, Jawa Tengah',
     'Menu MPASI bergizi untuk Raka agar tumbuh optimal',
     'Raka berusia 11 bulan dan mulai makan makanan keluarga. Berat badannya belum naik dalam dua bulan terakhir menurut catatan posyandu. Ayahnya bekerja sebagai pengemudi ojek, sehingga protein hewani jarang bisa dibeli.',
     [{n:'Telur ayam',q:'4 kg',c:120000},{n:'Ikan kembung',q:'3 kg',c:105000},{n:'Hati ayam',q:'1 kg',c:35000},{n:'Wortel, labu, dan bayam',q:'2 bulan',c:90000},{n:'Beras',q:'10 kg',c:140000}],.35,12,2),
-  mk('s3','menyusui','Ibu Wati (bayi 3 bulan)','Kab. Lombok Tengah, NTB',
+  mk('s3','menyusui','Ibu Wati','Lombok Tengah, Nusa Tenggara Barat',
     'Dukung Bu Wati menyusui dengan gizi yang cukup',
     'Bu Wati menyusui bayinya yang berusia 3 bulan. Keluarga mereka mengandalkan hasil kebun yang belum panen, sehingga asupan protein dan sayur Bu Wati sering kurang.',
     [{n:'Ikan segar',q:'5 kg',c:150000},{n:'Telur ayam',q:'4 kg',c:120000},{n:'Kacang hijau',q:'3 kg',c:60000},{n:'Daun kelor dan sayur hijau',q:'2 bulan',c:70000},{n:'Pisang dan pepaya',q:'2 bulan',c:80000}],.58,27,3),
-  mk('s4','anak','Naura (14 bulan)','Kab. Kupang, NTT',
+  mk('s4','anak','Naura','Kupang, Nusa Tenggara Timur',
     'Cegah stunting: protein hewani untuk Naura',
     'Tinggi badan Naura (14 bulan) berada di bawah kurva pertumbuhan pada pemeriksaan terakhir di puskesmas. Orang tuanya petani dengan lahan kecil.',
     [{n:'Telur ayam',q:'6 kg',c:180000},{n:'Ikan segar',q:'6 kg',c:180000},{n:'Hati ayam',q:'2 kg',c:70000},{n:'Ubi dan jagung',q:'2 bulan',c:60000}],.18,30,4),
-  mk('s5','hamil','Ibu Rina (22 minggu)','Kab. Sukabumi, Jawa Barat',
+  mk('s5','hamil','Ibu Rina','Sukabumi, Jawa Barat',
     'Nutrisi trimester kedua untuk Bu Rina dan calon bayi',
     'Bu Rina hamil anak kedua dan baru saja kehilangan pekerjaan di pabrik. Anggaran makan keluarga ditekan seminimal mungkin.',
     [{n:'Susu ibu hamil',q:'6 kotak',c:240000},{n:'Telur ayam',q:'4 kg',c:120000},{n:'Tempe dan tahu',q:'2 bulan',c:100000},{n:'Buah (pisang, jeruk, jambu)',q:'2 bulan',c:120000}],.88,6,5),
-  mk('s6','menyusui','Ibu Lastri (bayi 5 bulan)','Kab. Malang, Jawa Timur',
+  mk('s6','menyusui','Ibu Lastri','Malang, Jawa Timur',
     'Gizi seimbang untuk Bu Lastri selama ASI eksklusif',
     'Bu Lastri ingin memberi ASI eksklusif sampai 6 bulan, tetapi sering melewatkan makan karena harus menghemat.',
     [{n:'Ayam tanpa kulit',q:'4 kg',c:140000},{n:'Telur ayam',q:'4 kg',c:120000},{n:'Sayuran hijau',q:'2 bulan',c:80000},{n:'Kacang-kacangan',q:'3 kg',c:75000}],.44,18,6),
+];
+
+// Riwayat donasi awal milik pengguna (status: verifikasi, berhasil, gagal).
+// Kosongkan menjadi [] bila riwayat akan diambil dari backend.
+export const SAMPLE_DONATION_HISTORY:DonationRecord[]=[
+  {id:'NM-MD3K9A',campaignId:'s5',campaignTitle:'Nutrisi trimester kedua untuk Bu Rina dan calon bayi',recipient:'Ibu Rina',cat:'hamil',amount:50000,donorName:'Irfan Satya',anonymous:false,message:'Semoga sehat selalu, Bu.',method:'QRIS',ts:Date.now()-25*60000,status:'verifikasi'},
+  {id:'NM-MC7H2Q',campaignId:'s2',campaignTitle:'Menu MPASI bergizi untuk Raka agar tumbuh optimal',recipient:'Raka',cat:'anak',amount:100000,donorName:'Irfan Satya',anonymous:false,message:'',method:'QRIS',ts:Date.now()-2*864e5,status:'berhasil'},
+  {id:'NM-MB5X8P',campaignId:'s3',campaignTitle:'Dukung Bu Wati menyusui dengan gizi yang cukup',recipient:'Ibu Wati',cat:'menyusui',amount:25000,donorName:'Anonim',anonymous:true,message:'Barakallah.',method:'QRIS',ts:Date.now()-5*864e5,status:'gagal'},
 ];
 
 export const CATL:Record<string,string>={hamil:'Ibu hamil',menyusui:'Ibu menyusui',anak:'Anak 6–24 bulan'};

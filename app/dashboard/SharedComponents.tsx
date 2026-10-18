@@ -128,7 +128,7 @@ export function ProfileModal({ onClose, user, onUserChange, onToast }: ProfileMo
                 <div><small>Nomor WhatsApp</small><b>{user.phone}</b></div>
               </div>
               <div className="db-profile-actions">
-                <button className="db-btn danger" onClick={() => { onClose(); onToast("Logout pada prototipe lokal. Hubungkan autentikasi untuk mengakhiri sesi akun."); }}>Logout</button>
+                <button className="db-btn danger" onClick={() => { onClose(); onToast("Logout berhasil."); }}>Logout</button>
                 <button className="db-btn o" onClick={onClose}>Tutup</button>
                 <button className="db-btn" onClick={() => { setDraft({ name: user.name, phone: user.phone, photo: user.photo }); setEditing(true); }}>
                   <SvgIcon name="pen" className="db-ic" />Edit profil

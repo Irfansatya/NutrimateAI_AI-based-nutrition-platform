@@ -11,8 +11,8 @@
 
 /* ---------- HERO: video, subheadline, posisi navbar ---------- */
 .db-hero-video {
-  filter: blur(5px);
-  transform: scale(1.08);
+  filter: blur(12px);
+  transform: scale(1.12);
 }
 
 #db-hero .db-hero-in {

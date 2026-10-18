@@ -80,7 +80,7 @@
   display: block; flex: 1; min-height: 0; padding: 34px 0 30px;
   position: relative; z-index: 2;
 }
-.db-hero-copy { width: fit-content; max-width: 100%; }
+.db-hero-copy { width: 500px }
 .db-hero-copy h1 {
   font-size: clamp(31px,3.5vw,50px); line-height: 1.12;
   letter-spacing: -1.2px; color: #fff; font-weight: 500;

@@ -5,7 +5,7 @@ export const INITIAL_DONATIONS = [
     pem: 'Dewi Lestari',
     nm: 'Adik Raka',
     ket: '11 bulan',
-    kota: 'Kab. Demak, Jawa Tengah',
+    kota: 'Demak, Jawa Tengah',
     judul: 'Bantu Raka mendapat protein hewani setiap hari',
     story: 'Berat badan Raka belum naik dua bulan terakhir menurut posyandu. Ayahnya pengemudi ojek sehingga telur, ikan, dan hati ayam jarang terbeli.',
     items: [
@@ -25,7 +25,7 @@ export const INITIAL_DONATIONS = [
     pem: 'Sari Wulandari',
     nm: 'Ibu Sari',
     ket: 'Ibu hamil',
-    kota: 'Kab. Grobogan, Jawa Tengah',
+    kota: 'Grobogan, Jawa Tengah',
     judul: 'Bantu Bu Sari penuhi gizi di trimester ketiga',
     story: 'Suami Bu Sari buruh tani berpenghasilan tidak tetap. Bidan menganjurkan tambahan protein dan zat besi.',
     items: [
@@ -45,7 +45,7 @@ export const INITIAL_DONATIONS = [
     pem: 'Wati Handayani',
     nm: 'Ibu Wati',
     ket: 'Ibu menyusui',
-    kota: 'Kab. Lombok Tengah, NTB',
+    kota: 'Lombok Tengah, Nusa Tenggara Barat',
     judul: 'Dukung Bu Wati menyusui dengan gizi cukup',
     story: 'Keluarga mengandalkan kebun yang belum panen sehingga asupan protein dan sayur Bu Wati sering kurang.',
     items: [
@@ -65,7 +65,7 @@ export const INITIAL_DONATIONS = [
     pem: 'Rina Tri',
     nm: 'Ibu Rina',
     ket: 'Ibu hamil',
-    kota: 'Kab. Sukabumi, Jawa Barat',
+    kota: 'Sukabumi, Jawa Barat',
     judul: 'Nutrisi trimester kedua untuk Bu Rina',
     story: 'Bu Rina kehilangan pekerjaan di pabrik dan anggaran makan ditekan seminimal mungkin.',
     items: [
@@ -84,7 +84,7 @@ export const INITIAL_DONATIONS = [
     pem: 'Lastri Utami',
     nm: 'Adik Naura',
     ket: '14 bulan',
-    kota: 'Kab. Kupang, NTT',
+    kota: 'Kupang, Nusa Tenggara Timur',
     judul: 'Cegah stunting: protein hewani untuk Naura',
     story: 'Tinggi badan Naura di bawah kurva pertumbuhan pada pemeriksaan puskesmas terakhir.',
     items: [
