@@ -4,7 +4,12 @@ export const STATUS_BADGES = {
   revisi: ['Perlu revisi', 'warn'],
   ditolak: ['Ditolak', 'bad'],
   disetujui: ['Open donasi aktif', 'ok'],
-  selesai: ['Selesai', '']
+  selesai: ['Selesai', ''],
+  verifikasi: ['Menunggu verifikasi', 'warn'],
+  berhasil: ['Pembayaran berhasil', 'ok'],
+  gagal: ['Pembayaran gagal', 'bad'],
+  diproses: ['Menunggu transfer', 'warn'],
+  selesai_wd: ['Transfer selesai', 'ok']
 };
 
 export const TOPIC_BADGES = {

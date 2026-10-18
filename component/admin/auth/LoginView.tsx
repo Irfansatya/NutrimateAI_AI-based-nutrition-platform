@@ -8,9 +8,12 @@ export const LoginView = ({ onLoginSuccess }: { onLoginSuccess: () => void }) =>
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
+
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanEmail || !password) {
@@ -27,7 +30,12 @@ export const LoginView = ({ onLoginSuccess }: { onLoginSuccess: () => void }) =>
     }
 
     setError('');
-    onLoginSuccess();
+    setIsLoading(true);
+
+    setTimeout(() => {
+      setIsLoading(false);
+      onLoginSuccess();
+    }, 3000);
   };
 
   return (
@@ -75,8 +83,15 @@ export const LoginView = ({ onLoginSuccess }: { onLoginSuccess: () => void }) =>
             {error}
           </div>
 
-          <button className="btn" type="submit">
-            Masuk
+          <button className="btn" type="submit" disabled={isLoading} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            {isLoading ? (
+              <>
+                <span className="adm-spinner" aria-hidden="true" />
+                <span>Memverifikasi...</span>
+              </>
+            ) : (
+              'Masuk'
+            )}
           </button>
         </form>
 

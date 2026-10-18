@@ -22,7 +22,7 @@ export const INITIAL_USERS: UserAccount[] = [
   {
     id: 'usr_bunda_sari',
     name: 'Sari Rahayu',
-    email: 'sari@nutrimateai.id',
+    email: 'sari@gmail.com',
     phone: '+62 813-9876-5432',
     password: 'Password#2026',
     role: 'Pengguna NutrimateAI',

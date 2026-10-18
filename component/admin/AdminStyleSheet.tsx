@@ -999,6 +999,58 @@ export default function AdminStyleSheet() {
           padding: 6px;
         }
       }
+
+      /* ===== Loading Spinner ===== */
+      .adm-spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        border-top-color: #ffffff;
+        border-radius: 50%;
+        animation: adm-spin 0.65s linear infinite;
+        vertical-align: middle;
+      }
+      @keyframes adm-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* ===== Skeleton / Shimmer Styles ===== */
+      .adm-skel-wrapper {
+        width: 100%;
+      }
+      .adm-skel-box {
+        background: #eef1f6;
+        background-image: linear-gradient(
+          90deg,
+          #eef1f6 0%,
+          #f7f9fc 50%,
+          #eef1f6 100%
+        );
+        background-size: 200% 100%;
+        animation: adm-shimmer 1.5s ease-in-out infinite;
+        border-radius: 8px;
+      }
+      .adm-skel-card {
+        border-color: #eef1f6 !important;
+      }
+      .adm-skel-ic {
+        width: 50px;
+        height: 50px;
+        border-radius: 14px;
+        flex-shrink: 0;
+      }
+      @keyframes adm-shimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+
     `
       }}
     />

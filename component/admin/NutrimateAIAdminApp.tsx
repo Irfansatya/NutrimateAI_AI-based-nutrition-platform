@@ -1,20 +1,35 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import AdminStyleSheet from './AdminStyleSheet';
 import { ADMIN_ACCOUNT } from '@/lib/admin/data/admin';
 import { INITIAL_DONATIONS } from '@/lib/admin/data/donations';
 import { INITIAL_MESSAGES } from '@/lib/admin/data/messages';
 import { INITIAL_ACTIVITIES } from '@/lib/admin/data/activities';
 import { STATS_DATA } from '@/lib/admin/data/stats';
-import { clearAdminSession, hasAdminSession, saveAdminSession } from '@/lib/admin/session';
+import {
+  type QrisPaymentRecord,
+  type WithdrawalRecord,
+  getStoredPayments,
+  getStoredWithdrawals,
+  getStoredWallets
+} from '@/lib/admin/data/payments';
+import {
+  clearAdminSession,
+  hasAdminSession,
+  saveAdminSession,
+  getVisitedAdminPages,
+  markAdminPageVisited
+} from '@/lib/admin/session';
 import { Icon } from '@/component/admin/ui/Icon';
 import { Logo } from '@/component/admin/ui/Logo';
 import { ModalWrapper } from '@/component/admin/ui/ModalWrapper';
 import { DashboardView } from '@/component/admin/dashboard/DashboardView';
 import { DonationView } from '@/component/admin/donations/DonationView';
+import { PaymentsView } from '@/component/admin/payments/PaymentsView';
 import { MessageView } from '@/component/admin/messages/MessageView';
 import { LoginView } from '@/component/admin/auth/LoginView';
+import { AdminSkeleton } from '@/component/admin/ui/AdminSkeleton';
 
 // ===== Definisi Tipe Data Lintas Komponen =====
 export interface DonationItem {
@@ -57,12 +72,26 @@ export type Activity = [string, number];
 
 export default function NutrimateAIAdminApp() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dash' | 'don' | 'msg'>('dash');
+  const [activeTab, setActiveTab] = useState<'dash' | 'don' | 'pay' | 'msg'>('dash');
 
   // State Data dengan Type Casting
   const [donations, setDonations] = useState<Donation[]>(INITIAL_DONATIONS as Donation[]);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES as Message[]);
   const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES as Activity[]);
+
+  // State Pembayaran & Penarikan
+  const [payments, setPayments] = useState<QrisPaymentRecord[]>([]);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
+  const [wallets, setWallets] = useState<Record<string, number>>({});
+
+  // Loading Skeleton Per Halaman (3 detik pada kunjungan pertama di sesi)
+  const [pageLoading, setPageLoading] = useState<Record<string, boolean>>({
+    dash: false,
+    don: false,
+    pay: false,
+    msg: false
+  });
+  const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Global Interactivity (Toast & Logout Modal)
   const [toastMessage, setToastMessage] = useState('');
@@ -72,8 +101,46 @@ export default function NutrimateAIAdminApp() {
   useEffect(() => {
     if (hasAdminSession()) {
       setIsLoggedIn(true);
+      setPayments(getStoredPayments());
+      setWithdrawals(getStoredWithdrawals());
+      setWallets(getStoredWallets());
     }
   }, []);
+
+  // Handler pergantian tab dengan pengecekan first-visit skeleton 3 detik
+  const handleTabChange = useCallback((tab: 'dash' | 'don' | 'pay' | 'msg') => {
+    setActiveTab(tab);
+
+    const visited = getVisitedAdminPages();
+    if (!visited.includes(tab)) {
+      setPageLoading((prev) => ({ ...prev, [tab]: true }));
+      markAdminPageVisited(tab);
+
+      if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+      loadingTimerRef.current = setTimeout(() => {
+        setPageLoading((prev) => ({ ...prev, [tab]: false }));
+      }, 3000);
+    }
+  }, []);
+
+  // Saat pertama kali login, cek skeleton untuk dashboard
+  useEffect(() => {
+    if (isLoggedIn) {
+      const visited = getVisitedAdminPages();
+      if (!visited.includes(activeTab)) {
+        setPageLoading((prev) => ({ ...prev, [activeTab]: true }));
+        markAdminPageVisited(activeTab);
+
+        if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+        loadingTimerRef.current = setTimeout(() => {
+          setPageLoading((prev) => ({ ...prev, [activeTab]: false }));
+        }, 3000);
+      }
+    }
+    return () => {
+      if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+    };
+  }, [isLoggedIn, activeTab]);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -86,6 +153,9 @@ export default function NutrimateAIAdminApp() {
     setIsLoggedIn(true);
     setActiveTab('dash');
     saveAdminSession();
+    setPayments(getStoredPayments());
+    setWithdrawals(getStoredWithdrawals());
+    setWallets(getStoredWallets());
   };
 
   const handleLogout = () => {
@@ -130,14 +200,20 @@ export default function NutrimateAIAdminApp() {
     const totalMessages = messages.length;
     const repliedCount = totalMessages - unrepliedCount;
 
+    const pendingPaymentsCount = payments.filter((p) => p.status === 'verifikasi').length;
+    const pendingWithdrawalsCount = withdrawals.filter((w) => w.status === 'diproses').length;
+    const totalConfirmedDonations = payments
+      .filter((p) => p.status === 'berhasil')
+      .reduce((sum, p) => sum + p.amount, 0);
+
     if (activeTab === 'dash') {
       return [
         ['Total Pengguna', STATS_DATA.users.toLocaleString('id-ID'), `+${STATS_DATA.today} Hari ini`],
         ['Pengajuan Menunggu Verifikasi', countByStatus('review'), 'Perlu ditinjau'],
         [
           'Total Donasi Tercatat',
-          `Rp ${Math.round(STATS_DATA.donTotal / 1e6)}jt`,
-          `Dari ${STATS_DATA.donCount} donasi`
+          `Rp ${Math.round((STATS_DATA.donTotal + totalConfirmedDonations) / 1e6)}jt`,
+          `Dari ${STATS_DATA.donCount + payments.filter((p) => p.status === 'berhasil').length} donasi`
         ]
       ];
     }
@@ -150,12 +226,20 @@ export default function NutrimateAIAdminApp() {
       ];
     }
 
+    if (activeTab === 'pay') {
+      return [
+        ['Verifikasi QRIS', pendingPaymentsCount, 'Menunggu konfirmasi'],
+        ['Pencairan Dana', pendingWithdrawalsCount, 'Menunggu transfer manual'],
+        ['Donasi Berhasil', `Rp ${Math.round(totalConfirmedDonations / 1e3)}rb`, 'Telah masuk dompet']
+      ];
+    }
+
     return [
       ['Total Pesan', totalMessages, 'Dari Hubungi Kami'],
       ['Belum Dibalas', unrepliedCount, 'Perlu ditindaklanjuti'],
       ['Sudah Dibalas', repliedCount, 'Terkirim ke email']
     ];
-  }, [activeTab, donations, messages]);
+  }, [activeTab, donations, messages, payments, withdrawals]);
 
   const pageHeaderTitles = {
     dash: {
@@ -165,6 +249,10 @@ export default function NutrimateAIAdminApp() {
     don: {
       title: 'Verifikasi Donasi',
       sub: 'Tinjau pengajuan open donasi, lalu setujui, minta revisi, atau tolak.'
+    },
+    pay: {
+      title: 'Pembayaran & Penarikan',
+      sub: 'Verifikasi manual donasi QRIS dan kelola pengajuan pencairan dana penerima.'
     },
     msg: {
       title: 'Pesan Pengguna',
@@ -218,13 +306,14 @@ export default function NutrimateAIAdminApp() {
               {[
                 ['dash', 'Dashboard'],
                 ['don', 'Verifikasi Donasi'],
+                ['pay', 'Pembayaran & Penarikan'],
                 ['msg', 'Pesan Pengguna']
               ].map((nav) => (
                 <button
                   key={nav[0]}
                   className={activeTab === nav[0] ? 'on' : ''}
                   aria-current={activeTab === nav[0] ? 'page' : undefined}
-                  onClick={() => setActiveTab(nav[0] as 'dash' | 'don' | 'msg')}
+                  onClick={() => handleTabChange(nav[0] as 'dash' | 'don' | 'pay' | 'msg')}
                 >
                   {nav[1]}
                 </button>
@@ -273,28 +362,46 @@ export default function NutrimateAIAdminApp() {
       {/* Konten Halaman */}
       <main className="wr">
         <section className="panel">
-          {activeTab === 'dash' && (
-            <DashboardView
-              donations={donations}
-              messages={messages}
-              activities={activities}
-            />
-          )}
-          {activeTab === 'don' && (
-            <DonationView
-              donations={donations}
-              onUpdateDonation={handleUpdateDonation}
-              onShowToast={showToast}
-              onAddActivity={addActivity}
-            />
-          )}
-          {activeTab === 'msg' && (
-            <MessageView
-              messages={messages}
-              onReplyMessage={handleReplyMessage}
-              onShowToast={showToast}
-              onAddActivity={addActivity}
-            />
+          {pageLoading[activeTab] ? (
+            <AdminSkeleton type={activeTab} />
+          ) : (
+            <>
+              {activeTab === 'dash' && (
+                <DashboardView
+                  donations={donations}
+                  messages={messages}
+                  activities={activities}
+                />
+              )}
+              {activeTab === 'don' && (
+                <DonationView
+                  donations={donations}
+                  onUpdateDonation={handleUpdateDonation}
+                  onShowToast={showToast}
+                  onAddActivity={addActivity}
+                />
+              )}
+              {activeTab === 'pay' && (
+                <PaymentsView
+                  payments={payments}
+                  withdrawals={withdrawals}
+                  wallets={wallets}
+                  onUpdatePayments={setPayments}
+                  onUpdateWithdrawals={setWithdrawals}
+                  onUpdateWallets={setWallets}
+                  onShowToast={showToast}
+                  onAddActivity={addActivity}
+                />
+              )}
+              {activeTab === 'msg' && (
+                <MessageView
+                  messages={messages}
+                  onReplyMessage={handleReplyMessage}
+                  onShowToast={showToast}
+                  onAddActivity={addActivity}
+                />
+              )}
+            </>
           )}
         </section>
       </main>
