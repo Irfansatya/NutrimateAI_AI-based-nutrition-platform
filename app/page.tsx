@@ -3,11 +3,14 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import Navbar from "@/component/Navbar";
 import FeatureCarousel from "@/component/FeatureCarousel";
 import TestimonialCarousel from "@/component/TestimonialCarousel";
 import GuideModal from "@/component/GuideModal";
 import AuthModal from "@/component/AuthModal";
+import { hasUserSession } from "@/lib/user/session";
+import { hasAdminSession } from "@/lib/admin/session";
 
 // Typewriter hook supporting trigger, delay, and completion
 function useScrollTypewriter(
@@ -45,9 +48,34 @@ function useScrollTypewriter(
 }
 
 export default function LandingPage() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signup");
   const [guideModalOpen, setGuideModalOpen] = useState(false);
+
+  // Redirection guard: authenticated users cannot return to landing page
+  useEffect(() => {
+    if (hasAdminSession()) {
+      router.replace("/admin");
+      return;
+    }
+    if (hasUserSession()) {
+      router.replace("/dashboard");
+      return;
+    }
+    setAuthChecked(true);
+
+    const checkPopstate = () => {
+      if (hasAdminSession()) {
+        router.replace("/admin");
+      } else if (hasUserSession()) {
+        router.replace("/dashboard");
+      }
+    };
+    window.addEventListener("popstate", checkPopstate);
+    return () => window.removeEventListener("popstate", checkPopstate);
+  }, [router]);
 
   // Trigger states
   const [heroStart] = useState(true);
@@ -288,6 +316,17 @@ export default function LandingPage() {
       show: true,
     });
   };
+
+  if (!authChecked) {
+    return (
+      <div className="bg-white min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[#05976A]/30 border-t-[#05976A] rounded-full animate-spin" />
+          <span className="text-sm font-medium text-[#5b5f66]">Memuat NutriMate AI...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="landing-page bg-white min-h-screen text-[#121517] selection:bg-[#05976A]/20">

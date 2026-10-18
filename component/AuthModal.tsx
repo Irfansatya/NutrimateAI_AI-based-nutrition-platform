@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { registerUser, authenticateUser, saveUserSession } from "@/lib/user/session";
+import { registerUser, authenticateUser, saveUserSession, hasUserSession } from "@/lib/user/session";
 
 /* Ikon mata untuk tombol lihat/sembunyikan kata sandi */
 function EyeIcon() {
@@ -101,11 +101,17 @@ export default function AuthModal({
   // (Daftar -> signup, Masuk -> signin), bukan mode terakhir yang dibuka.
   useEffect(() => {
     if (isOpen) {
+      // Jika user sudah login saat membuka popup, langsung arahkan ke dashboard
+      if (hasUserSession()) {
+        onClose();
+        router.replace("/dashboard");
+        return;
+      }
       setMode(initialMode);
       setShowPassword(false);
       setShowConfirmPassword(false);
     }
-  }, [isOpen, initialMode]);
+  }, [isOpen, initialMode, onClose, router]);
 
   // Berpindah antara form Masuk dan Daftar selalu mengembalikan toggle ke mata tertutup.
   useEffect(() => {

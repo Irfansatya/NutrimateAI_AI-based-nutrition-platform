@@ -3,6 +3,7 @@ import React from "react";
 import { SvgIcon } from "./SvgIcon";
 import { BankSelect, BANKS } from "./BankSelect";
 import type { MyCampaign, Withdrawal } from "@/lib/dashboard/campaign";
+import { getSharedWallets } from "@/lib/shared/store";
 
 const rpx = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID");
 
@@ -35,7 +36,14 @@ export default function NutriWallet({ myCampaign, withdrawals, onWithdraw, onToa
 
   // Dana masuk berasal dari donasi pada open donasi milik pengguna
   const donors = React.useMemo(() => myCampaign?.donors ?? [], [myCampaign]);
-  const total = donors.reduce((a, d) => a + d.amt, 0);
+  const campaignDonationsTotal = donors.reduce((a, d) => a + d.amt, 0);
+
+  // Baca saldo tersimpan dari shared localStorage berdasarkan penerima/user
+  const recipientName = myCampaign?.form?.penerima || myCampaign?.nama || "Irfan Satya";
+  const sharedWallets = getSharedWallets();
+  const storedBalance = sharedWallets[recipientName] ?? sharedWallets["Ibu Rina"] ?? 0;
+
+  const total = Math.max(campaignDonationsTotal, storedBalance);
   const running = myCampaign?.status === "berjalan";
   const held = running ? total : 0;
   const wd = withdrawals.reduce((a, w) => a + w.amt, 0);

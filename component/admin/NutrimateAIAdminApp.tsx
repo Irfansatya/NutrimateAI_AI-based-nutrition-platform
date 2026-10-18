@@ -3,17 +3,24 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import AdminStyleSheet from './AdminStyleSheet';
 import { ADMIN_ACCOUNT } from '@/lib/admin/data/admin';
-import { INITIAL_DONATIONS } from '@/lib/admin/data/donations';
 import { INITIAL_MESSAGES } from '@/lib/admin/data/messages';
 import { INITIAL_ACTIVITIES } from '@/lib/admin/data/activities';
 import { STATS_DATA } from '@/lib/admin/data/stats';
 import {
   type QrisPaymentRecord,
   type WithdrawalRecord,
-  getStoredPayments,
-  getStoredWithdrawals,
-  getStoredWallets
 } from '@/lib/admin/data/payments';
+import {
+  getAdminDonationsList,
+  updateCampaignStatusByAdmin,
+  getSharedPayments,
+  saveSharedPayments,
+  getSharedWithdrawals,
+  saveSharedWithdrawals,
+  getSharedWallets,
+  saveSharedWallets,
+  SYNC_EVENT_NAME
+} from '@/lib/shared/store';
 import {
   clearAdminSession,
   hasAdminSession,
@@ -75,7 +82,7 @@ export default function NutrimateAIAdminApp() {
   const [activeTab, setActiveTab] = useState<'dash' | 'don' | 'pay' | 'msg'>('dash');
 
   // State Data dengan Type Casting
-  const [donations, setDonations] = useState<Donation[]>(INITIAL_DONATIONS as Donation[]);
+  const [donations, setDonations] = useState<Donation[]>([]);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES as Message[]);
   const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES as Activity[]);
 
@@ -97,15 +104,34 @@ export default function NutrimateAIAdminApp() {
   const [toastMessage, setToastMessage] = useState('');
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
-  // Inisialisasi Session Sesuai HTML Asli
+  // Fungsi reload data tersimpan dari shared localStorage
+  const refreshSharedData = useCallback(() => {
+    setDonations(getAdminDonationsList());
+    setPayments(getSharedPayments());
+    setWithdrawals(getSharedWithdrawals());
+    setWallets(getSharedWallets());
+  }, []);
+
+  // Inisialisasi Session Sesuai HTML Asli & Listen Sync Events
   useEffect(() => {
     if (hasAdminSession()) {
       setIsLoggedIn(true);
-      setPayments(getStoredPayments());
-      setWithdrawals(getStoredWithdrawals());
-      setWallets(getStoredWallets());
+      refreshSharedData();
     }
-  }, []);
+
+    const handleSync = () => {
+      if (hasAdminSession()) {
+        refreshSharedData();
+      }
+    };
+
+    window.addEventListener(SYNC_EVENT_NAME, handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener(SYNC_EVENT_NAME, handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [refreshSharedData]);
 
   // Handler pergantian tab dengan pengecekan first-visit skeleton 3 detik
   const handleTabChange = useCallback((tab: 'dash' | 'don' | 'pay' | 'msg') => {
@@ -153,9 +179,7 @@ export default function NutrimateAIAdminApp() {
     setIsLoggedIn(true);
     setActiveTab('dash');
     saveAdminSession();
-    setPayments(getStoredPayments());
-    setWithdrawals(getStoredWithdrawals());
-    setWallets(getStoredWallets());
+    refreshSharedData();
   };
 
   const handleLogout = () => {
@@ -170,19 +194,8 @@ export default function NutrimateAIAdminApp() {
   }, []);
 
   const handleUpdateDonation = useCallback((id: number, newStatus: string, note?: string) => {
-    setDonations((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          return {
-            ...item,
-            st: newStatus,
-            d: newStatus === 'disetujui' ? 0 : item.d,
-            ...(note ? { note } : {})
-          };
-        }
-        return item;
-      })
-    );
+    updateCampaignStatusByAdmin(id, newStatus, note);
+    setDonations(getAdminDonationsList());
   }, []);
 
   const handleReplyMessage = useCallback((id: number, replyText: string, replyTime: string) => {
@@ -386,9 +399,18 @@ export default function NutrimateAIAdminApp() {
                   payments={payments}
                   withdrawals={withdrawals}
                   wallets={wallets}
-                  onUpdatePayments={setPayments}
-                  onUpdateWithdrawals={setWithdrawals}
-                  onUpdateWallets={setWallets}
+                  onUpdatePayments={(next) => {
+                    saveSharedPayments(next);
+                    setPayments(next);
+                  }}
+                  onUpdateWithdrawals={(next) => {
+                    saveSharedWithdrawals(next);
+                    setWithdrawals(next);
+                  }}
+                  onUpdateWallets={(next) => {
+                    saveSharedWallets(next);
+                    setWallets(next);
+                  }}
                   onShowToast={showToast}
                   onAddActivity={addActivity}
                 />

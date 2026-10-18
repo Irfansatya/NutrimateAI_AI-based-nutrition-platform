@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,11 +18,20 @@ import NutriHelp from "@/component/dashboard/NutriHelp";
 import NutriAssist from "@/component/dashboard/NutriAssist";
 import { getCurrentUser, clearUserSession } from "@/lib/user/session";
 import type { DonationRecord, MyCampaign, Withdrawal } from "@/lib/dashboard/campaign";
+import {
+  getUserActiveCampaign,
+  upsertUserCampaign,
+  getSharedPayments,
+  saveSharedPayments,
+  getSharedWithdrawals,
+  saveSharedWithdrawals,
+  SYNC_EVENT_NAME
+} from "@/lib/shared/store";
+import type { QrisPaymentRecord, WithdrawalRecord } from "@/lib/admin/data/payments";
 
 import {
   MOCK_USER,
   NAV_ITEMS,
-  SAMPLE_DONATION_HISTORY,
   type Cat,
   type DayPlan,
 } from "@/lib/dashboard/mockData";
@@ -143,54 +152,168 @@ export default function DashboardPage() {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
 
   // NutriAssist: riwayat donasi milik pengguna (status awal: Dalam verifikasi)
-  const [donations, setDonations] = useState<DonationRecord[]>(SAMPLE_DONATION_HISTORY);
-  const handleAddDonation = (d: DonationRecord) => setDonations(prev => [d, ...prev]);
+  const [donations, setDonations] = useState<DonationRecord[]>([]);
+
+  // Sinkronisasi data dari shared localStorage
+  const refreshUserSharedData = useCallback(() => {
+    const active = getCurrentUser();
+    const activeCamp = getUserActiveCampaign(active?.id);
+    setMyCampaign(activeCamp);
+
+    // Ambil withdrawals dari shared
+    const sharedWd = getSharedWithdrawals();
+    const userWds: Withdrawal[] = sharedWd.map(w => ({
+      id: w.id,
+      amt: w.amount,
+      ts: w.createdAt,
+      bank: w.bank,
+      acctMasked: w.acctMasked,
+      name: w.name,
+      status: w.status === 'selesai' ? ('selesai' as any) : 'diproses',
+    }));
+    setWithdrawals(userWds);
+
+    // Ambil donations dari shared
+    const sharedPay = getSharedPayments();
+    const userDons: DonationRecord[] = sharedPay.map(p => ({
+      id: p.id,
+      campaignId: p.campaignId,
+      campaignTitle: p.campaignTitle,
+      recipient: p.recipient,
+      cat: 'hamil',
+      amount: p.amount,
+      donorName: p.donorName,
+      anonymous: p.anonymous,
+      message: p.message || '',
+      method: 'QRIS',
+      ts: p.createdAt,
+      status: p.status,
+    }));
+    setDonations(userDons);
+  }, []);
+
+  useEffect(() => {
+    if (isAuthorized) {
+      refreshUserSharedData();
+    }
+
+    const handleSync = () => {
+      refreshUserSharedData();
+    };
+
+    window.addEventListener(SYNC_EVENT_NAME, handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener(SYNC_EVENT_NAME, handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [isAuthorized, refreshUserSharedData]);
+
+  const handleAddDonation = (d: DonationRecord) => {
+    const qrisRecord: QrisPaymentRecord = {
+      id: d.id,
+      campaignId: d.campaignId,
+      campaignTitle: d.campaignTitle,
+      recipient: d.recipient,
+      amount: d.amount,
+      donorName: d.donorName,
+      anonymous: d.anonymous,
+      message: d.message,
+      method: 'QRIS',
+      createdAt: d.ts,
+      status: d.status,
+    };
+    const cur = getSharedPayments();
+    const next = [qrisRecord, ...cur];
+    saveSharedPayments(next);
+    refreshUserSharedData();
+  };
 
   // Open donasi yang masa tayangnya habis otomatis berstatus selesai
   useEffect(() => {
     if (myCampaign?.status !== "berjalan") return;
     const iv = setInterval(() => {
-      setMyCampaign(c =>
-        c && c.status === "berjalan" && c.deadline <= Date.now()
-          ? { ...c, status: "selesai", endedAt: c.deadline, endReason: "expired" }
-          : c
-      );
+      setMyCampaign(c => {
+        if (c && c.status === "berjalan" && c.deadline <= Date.now()) {
+          const ended: MyCampaign = { ...c, status: "selesai", endedAt: c.deadline, endReason: "expired" };
+          const active = getCurrentUser();
+          upsertUserCampaign(ended, active?.id);
+          return ended;
+        }
+        return c;
+      });
     }, 60000);
     return () => clearInterval(iv);
   }, [myCampaign?.status]);
 
-  const handleSubmitCampaign = (c: MyCampaign) => setMyCampaign(c);
+  const handleSubmitCampaign = (c: MyCampaign) => {
+    const active = getCurrentUser();
+    upsertUserCampaign(c, active?.id);
+    refreshUserSharedData();
+  };
 
   const handlePublishCampaign = () => {
     const now = Date.now();
-    setMyCampaign(c =>
-      c && c.status === "disetujui"
-        ? { ...c, status: "berjalan", publishedAt: now, deadline: now + c.durasi * 864e5 }
-        : c
-    );
+    setMyCampaign(c => {
+      if (c && c.status === "disetujui") {
+        const next: MyCampaign = { ...c, status: "berjalan", publishedAt: now, deadline: now + c.durasi * 864e5 };
+        const active = getCurrentUser();
+        upsertUserCampaign(next, active?.id);
+        return next;
+      }
+      return c;
+    });
   };
 
   const handleCancelCampaign = () => {
     const now = Date.now();
-    setMyCampaign(c =>
-      c && (c.status === "review" || c.status === "disetujui")
-        ? { ...c, status: "dibatalkan", endedAt: now }
-        : c
-    );
+    setMyCampaign(c => {
+      if (c && (c.status === "review" || c.status === "disetujui")) {
+        const next: MyCampaign = { ...c, status: "dibatalkan", endedAt: now };
+        const active = getCurrentUser();
+        upsertUserCampaign(next, active?.id);
+        return next;
+      }
+      return c;
+    });
   };
 
   const handleFinishCampaign = () => {
     const now = Date.now();
-    setMyCampaign(c =>
-      c && c.status === "berjalan"
-        ? { ...c, status: "selesai", endedAt: now, endReason: "manual" }
-        : c
-    );
+    setMyCampaign(c => {
+      if (c && c.status === "berjalan") {
+        const next: MyCampaign = { ...c, status: "selesai", endedAt: now, endReason: "manual" };
+        const active = getCurrentUser();
+        upsertUserCampaign(next, active?.id);
+        return next;
+      }
+      return c;
+    });
   };
 
-  const handleResetCampaign = () => setMyCampaign(null);
+  const handleResetCampaign = () => {
+    setMyCampaign(null);
+  };
 
-  const handleWithdraw = (w: Withdrawal) => setWithdrawals(prev => [w, ...prev]);
+  const handleWithdraw = (w: Withdrawal) => {
+    const active = getCurrentUser();
+    const wdRecord: WithdrawalRecord = {
+      id: w.id,
+      userId: active?.id || 'usr_me',
+      userName: active?.name || w.name,
+      bank: w.bank,
+      acct: w.acctMasked.replace('•••• ', '10000000'), // Simpan nomor rekening
+      acctMasked: w.acctMasked,
+      name: w.name,
+      amount: w.amt,
+      createdAt: w.ts,
+      status: 'diproses',
+    };
+    const cur = getSharedWithdrawals();
+    const next = [wdRecord, ...cur];
+    saveSharedWithdrawals(next);
+    refreshUserSharedData();
+  };
 
   const handleToast = (msg: string) => {
     setToastMsg(msg);
