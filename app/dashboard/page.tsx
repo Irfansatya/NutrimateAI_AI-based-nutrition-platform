@@ -630,9 +630,9 @@ export default function DashboardPage() {
     }
   };
 
-  const handleToast = (msg: string) => {
+  const handleToast = useCallback((msg: string) => {
     setToastMsg(msg);
-  };
+  }, []);
 
   const handleDataChange = (targetCat: Cat, nextData: Record<string, unknown>) => {
     setCheckData(prev => ({ ...prev, [targetCat]: nextData }));

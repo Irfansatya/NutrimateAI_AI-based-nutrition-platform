@@ -506,17 +506,16 @@ export default function NutriCheck({
         }
 
         // 3. AI generation simulation transition
-        const STEP1 = 4500, STEP2 = 3000, LOAD = 3000;
+        const STEP1 = 2000, STEP2 = 2000;
         timers.current.forEach(clearTimeout);
         timers.current = [
           setTimeout(() => setAiPhase(1), STEP1),
           setTimeout(() => setAiPhase(2), STEP1 + STEP2),
           setTimeout(() => {
             setShowAiWait(false);
-            const budget = Number(d.bud) || 25000;
-            const plan = buildPlan(cat, budget, [], Date.now() % 9999);
-            onGoToPlan(plan, cat);
-          }, STEP1 + STEP2 + LOAD),
+            // Pindah ke tab NutriPlan; NutriPlan akan otomatis memuat atau men-generate plan riil dari Gemini backend
+            onGoToPlan([], cat);
+          }, STEP1 + STEP2 + 1000),
         ];
       } catch {
         setShowAiWait(false);

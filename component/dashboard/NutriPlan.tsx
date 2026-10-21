@@ -3,17 +3,82 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { SvgIcon } from "./SvgIcon";
 import { PageIntro } from "./SharedComponents";
-import { type DayPlan, type Cat, CATS, buildPlan } from "@/lib/dashboard/mockData";
+import { type DayPlan, type Cat, CATS, type Meal, type MealItem, buildPlan } from "@/lib/dashboard/mockData";
+import { apiGetCurrentPlan, apiGeneratePlan, type NutriPlanData } from "@/lib/nutriplan/client";
+import { apiGetLatestAssessment } from "@/lib/nutricheck/client";
 
 const rp = (k: number) => "Rp " + Math.round(k * 1000).toLocaleString("id-ID");
 const rpFlat = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID");
 const dk = (d: Date) => d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate();
 
+function mapCategoryToDb(cat: Cat): "PREGNANCY" | "BREASTFEEDING" | "CHILD" {
+  if (cat === "hamil") return "PREGNANCY";
+  if (cat === "menyusui") return "BREASTFEEDING";
+  return "CHILD";
+}
+
+function mapBackendPlanToDayPlans(backendPlan: NutriPlanData): DayPlan[] {
+  return backendPlan.days.map((day) => {
+    const rawDate = day.recommendationDate;
+    const parsedDate = new Date(rawDate);
+    const d = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+    const m: Meal[] = (day.meals || []).map((slot) => {
+      const items: MealItem[] = (slot.items || []).map((it) => ({
+        n: it.name,
+        q: it.portion,
+        c: (it.estimatedCost || 0) / 1000,
+        nu: it.nutritionSummary || "",
+        b: it.benefit || "",
+      }));
+      return {
+        t: slot.time,
+        l: slot.label,
+        items,
+      };
+    });
+
+    return {
+      d,
+      m,
+      c: (day.estimatedCost || 0) / 1000,
+      over: day.isOverBudget || false,
+    };
+  });
+}
+
 // ===== SKELETON / SHIMMER =====
-function PlanSkeleton() {
+function PlanSkeleton({ isGenerating = false }: { isGenerating?: boolean }) {
   return (
     <div aria-busy="true" aria-label="Memuat rekomendasi menu">
       <PageIntro page="plan" action={<div className="db-sk" style={{ width: 150, height: 44, borderRadius: 10 }} />} />
+      {isGenerating && (
+        <div style={{
+          background: "#ECFDF5",
+          border: "1px solid #A7F3D0",
+          borderRadius: 12,
+          padding: "14px 18px",
+          marginBottom: 16,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          color: "#065F46"
+        }}>
+          <div style={{
+            width: 18,
+            height: 18,
+            border: "2px solid #059669",
+            borderTopColor: "transparent",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite"
+          }} />
+          <div style={{ fontSize: 14 }}>
+            <b>NutriMate AI sedang menyusun rencana gizi 30 hari...</b>
+            <div style={{ fontSize: 13, color: "#047857", marginTop: 2 }}>
+              Menyesuaikan bahan lokal dengan kebutuhan nutrisi dan batasan anggaran harian Anda (±10–25 detik).
+            </div>
+          </div>
+        </div>
+      )}
       <div className="db-plan-layout">
         <div className="db-plan-left">
           {/* kalender */}
@@ -86,23 +151,146 @@ interface NutriPlanProps {
 
 export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, userPhone }: NutriPlanProps) {
   const [sel, setSel] = React.useState(0);
-  const [viewMonth, setViewMonth] = React.useState<Date>(() => plan ? new Date(plan[0].d.getFullYear(), plan[0].d.getMonth(), 1) : new Date());
-  const [localPlan, setLocalPlan] = React.useState<DayPlan[] | null>(plan);
-  const [seed, setSeed] = React.useState(1);
-  const [fbText, setFbText] = React.useState("");
-  const [fbExclude, setFbExclude] = React.useState<string[]>([]);
-  const [budgetFactor, setBudgetFactor] = React.useState(1);
+  const [viewMonth, setViewMonth] = React.useState<Date>(() => {
+    if (plan && plan.length > 0 && plan[0]?.d instanceof Date && !isNaN(plan[0].d.getTime())) {
+      return new Date(plan[0].d.getFullYear(), plan[0].d.getMonth(), 1);
+    }
+    return new Date();
+  });
+  const [localPlan, setLocalPlan] = React.useState<DayPlan[] | null>(plan && plan.length > 0 ? plan : null);
+  const [dailyTipsList, setDailyTipsList] = React.useState<string[]>([]);
+  const [activePlanMeta, setActivePlanMeta] = React.useState<NutriPlanData | null>(null);
+  const [planError, setPlanError] = React.useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = React.useState(false);
   const [approved, setApproved] = React.useState(false);
   const [waNumber, setWaNumber] = React.useState(userPhone);
   const [showModal, setShowModal] = React.useState(false);
   const [waErr, setWaErr] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-  // Skeleton/Shimmer sebentar saat halaman NutriPlan baru dibuka
-  const [booting, setBooting] = React.useState(true);
+  const [loading, setLoading] = React.useState(true);
+  const [fbText, setFbText] = React.useState("");
+  const [fbExclude, setFbExclude] = React.useState<string[]>([]);
+  const [budgetFactor, setBudgetFactor] = React.useState(1);
+  const [seed, setSeed] = React.useState(1);
+
+  const [hasAssessment, setHasAssessment] = React.useState<boolean | null>(null);
+
+  const isMountedRef = React.useRef(true);
+  const isFetchingRef = React.useRef(false);
+  const onToastRef = React.useRef(onToast);
+  React.useEffect(() => { onToastRef.current = onToast; });
+
+  // Load existing plan or generate one from Gemini backend
+  const loadOrGeneratePlan = React.useCallback(async (retryCount = 0) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    setLoading(true);
+    setPlanError(null);
+
+    const dbCategory = mapCategoryToDb(planCat);
+
+    try {
+      // 1. Check if an active plan already exists
+      const currentRes = await apiGetCurrentPlan(dbCategory);
+
+      if (!isMountedRef.current) return;
+
+      if (currentRes.success && currentRes.data?.plan) {
+        const fetchedPlan: NutriPlanData = currentRes.data.plan;
+        const mapped = mapBackendPlanToDayPlans(fetchedPlan);
+        setLocalPlan(mapped);
+        setActivePlanMeta(fetchedPlan);
+        setDailyTipsList(fetchedPlan.days.map((d) => d.dailyTips || ""));
+        setApproved(fetchedPlan.isApproved || false);
+        setHasAssessment(true);
+        setSel(0);
+        if (mapped.length > 0) {
+          setViewMonth(new Date(mapped[0].d.getFullYear(), mapped[0].d.getMonth(), 1));
+        }
+        setLoading(false);
+        isFetchingRef.current = false;
+        return;
+      }
+
+      // 2. Check whether a saved NutriCheck assessment exists before calling Gemini
+      const assessRes = await apiGetLatestAssessment(dbCategory);
+
+      if (!isMountedRef.current) return;
+
+      if (!assessRes.success || !assessRes.data?.latest) {
+        // No saved assessment for this category: show honest empty state
+        setHasAssessment(false);
+        setLocalPlan(null);
+        setPlanError(null);
+        setLoading(false);
+        isFetchingRef.current = false;
+        return;
+      }
+
+      setHasAssessment(true);
+
+      // 3. Assessment exists, but plan does not exist: generate a new plan via Gemini
+      setIsGenerating(true);
+      setLoading(false); // Switch from initial fetch skeleton to explicit generating state
+      const genRes = await apiGeneratePlan(dbCategory);
+
+      if (!isMountedRef.current) return;
+      setIsGenerating(false);
+
+      if (genRes.success && genRes.data?.planId) {
+        // Fetch the freshly generated plan
+        const afterGenRes = await apiGetCurrentPlan(dbCategory);
+        if (afterGenRes.success && afterGenRes.data?.plan) {
+          const freshPlan: NutriPlanData = afterGenRes.data.plan;
+          const mapped = mapBackendPlanToDayPlans(freshPlan);
+          setLocalPlan(mapped);
+          setActivePlanMeta(freshPlan);
+          setDailyTipsList(freshPlan.days.map((d) => d.dailyTips || ""));
+          setApproved(freshPlan.isApproved || false);
+          setSel(0);
+          if (mapped.length > 0) {
+            setViewMonth(new Date(mapped[0].d.getFullYear(), mapped[0].d.getMonth(), 1));
+          }
+          setLoading(false);
+          isFetchingRef.current = false;
+          onToastRef.current("Rencana gizi 30 hari berhasil disusun oleh AI.");
+          return;
+        }
+      }
+
+      // If generation failed with NO_ASSESSMENT, mark hasAssessment = false
+      if (genRes.code === "NO_ASSESSMENT") {
+        setHasAssessment(false);
+        setLocalPlan(null);
+        setPlanError(null);
+        setLoading(false);
+        isFetchingRef.current = false;
+        return;
+      }
+
+      // If generation failed with any other error, present honest error state
+      const errMsg = genRes.message || "Gagal menyusun rekomendasi gizi.";
+      setPlanError(errMsg);
+      setLocalPlan(null);
+      setLoading(false);
+      isFetchingRef.current = false;
+    } catch {
+      if (!isMountedRef.current) return;
+      setIsGenerating(false);
+      setPlanError("Terjadi gangguan jaringan saat memuat rekomendasi gizi.");
+      setLocalPlan(null);
+      setLoading(false);
+      isFetchingRef.current = false;
+    }
+  }, [planCat]);
+
   React.useEffect(() => {
-    const t = setTimeout(() => setBooting(false), 2200);
-    return () => clearTimeout(t);
-  }, []);
+    isMountedRef.current = true;
+    loadOrGeneratePlan();
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [loadOrGeneratePlan]);
 
   // Saat popup NutriDaily terbuka: kunci scroll halaman utama dan izinkan tutup dengan tombol Esc
   React.useEffect(() => {
@@ -123,10 +311,29 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
     };
   }, [showModal]);
 
-  // Sync plan from props
-  React.useEffect(() => { if (plan) { setLocalPlan(plan); setSel(0); setViewMonth(new Date(plan[0].d.getFullYear(), plan[0].d.getMonth(), 1)); } }, [plan]);
+  if (loading || isGenerating) {
+    return <PlanSkeleton isGenerating={isGenerating} />;
+  }
 
-  if (!localPlan) {
+  if (planError) {
+    return (
+      <div>
+        <PageIntro page="plan" />
+        <div className="db-emp">
+          <h2 style={{ color: "#d9383a" }}>Gagal Menampilkan Rekomendasi Gizi</h2>
+          <p className="db-sub" style={{ marginTop: 8, maxWidth: 480, marginInline: "auto" }}>
+            {planError}
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 20 }}>
+            <button className="db-btn o" onClick={onGoCheck}>Perbarui NutriCheck</button>
+            <button className="db-btn" onClick={() => loadOrGeneratePlan()}>Coba Lagi</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!localPlan || localPlan.length === 0) {
     return (
       <div>
         <PageIntro page="plan" />
@@ -138,8 +345,6 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
       </div>
     );
   }
-
-  if (booting || loading) return <PlanSkeleton />;
 
   const vm = viewMonth;
   const y = vm.getFullYear(), mo = vm.getMonth();
@@ -232,9 +437,9 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
           <div className="db-plan-right">
             <div className="db-sum">
               <div>Kategori<b>{catLabel}</b></div>
-              <div>Anggaran/hari<b>{rpFlat(budget * budgetFactor)}</b></div>
+              <div>Anggaran/hari<b>{rpFlat(activePlanMeta ? activePlanMeta.dailyBudget : budget * budgetFactor)}</b></div>
               <div>Periode<b>30 hari</b></div>
-              <div>Status<b style={{ color: approved ? "var(--g)" : "#B54708" }}>{approved ? "Disetujui" : "Menunggu persetujuan"}</b></div>
+              <div>Status<b style={{ color: approved ? "var(--g)" : "#B54708" }}>{approved ? "Disetujui" : activePlanMeta?.status === "READY" ? "Siap Digunakan" : "Menunggu persetujuan"}</b></div>
             </div>
             <div className="db-monthly-target">
               <span>Target bulan ini</span>
@@ -284,6 +489,19 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
               Estimasi biaya bahan <b>{rp(p.c)}</b>
             </div>
           </div>
+          {dailyTipsList[sel] && (
+            <div style={{
+              background: "#E8F5E9",
+              border: "1px solid #A5D6A7",
+              borderRadius: 12,
+              padding: "12px 16px",
+              marginBottom: 16,
+              fontSize: 14,
+              color: "#2E7D32"
+            }}>
+              <b>Tips Gizi Hari Ini:</b> {dailyTipsList[sel]}
+            </div>
+          )}
           <div className="db-meal-list">
             {meals.map((m, mi) => (
               <article key={mi} className="db-meal">

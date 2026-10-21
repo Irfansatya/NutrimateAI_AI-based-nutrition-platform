@@ -4,8 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import AdminStyleSheet from './AdminStyleSheet';
 import { ADMIN_ACCOUNT } from '@/lib/admin/data/admin';
 import { INITIAL_MESSAGES } from '@/lib/admin/data/messages';
-import { INITIAL_ACTIVITIES } from '@/lib/admin/data/activities';
-import { STATS_DATA } from '@/lib/admin/data/stats';
+import { apiGetDashboardSummary, type DashboardSummary } from '@/lib/admin/dashboard/client';
 import {
   type QrisPaymentRecord,
   type WithdrawalRecord,
@@ -92,7 +91,11 @@ export default function NutrimateAIAdminApp() {
   const [donations, setDonations] = useState<Donation[]>([]);
   const [donationsError, setDonationsError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES as Message[]);
-  const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES as Activity[]);
+
+  // Dashboard summary (live from DB)
+  const [dashSummary, setDashSummary] = useState<DashboardSummary | null>(null);
+  const [dashSummaryLoading, setDashSummaryLoading] = useState(false);
+  const [dashSummaryError, setDashSummaryError] = useState<string | null>(null);
 
   // State Pembayaran & Penarikan
   const [payments, setPayments] = useState<QrisPaymentRecord[]>([]);
@@ -166,6 +169,24 @@ export default function NutrimateAIAdminApp() {
       dn: camp.donations?.length || 0,
       note: camp.adminNote || undefined,
     };
+  }, []);
+
+  // Fungsi muat ringkasan dashboard dari API
+  const loadDashboardSummary = useCallback(async () => {
+    setDashSummaryLoading(true);
+    setDashSummaryError(null);
+    try {
+      const res = await apiGetDashboardSummary();
+      if (res.success && res.data) {
+        setDashSummary(res.data);
+      } else {
+        setDashSummaryError(res.message || 'Gagal memuat ringkasan dashboard.');
+      }
+    } catch {
+      setDashSummaryError('Gagal terhubung ke server.');
+    } finally {
+      setDashSummaryLoading(false);
+    }
   }, []);
 
   // Fungsi reload data tersimpan dari backend PostgreSQL (Campaigns) dan shared localStorage (Payments, Withdrawals, Wallets)
@@ -277,6 +298,7 @@ export default function NutrimateAIAdminApp() {
           setIsLoggedIn(true);
           setAdminUser(res.data.user);
           refreshSharedData();
+          loadDashboardSummary();
         } else {
           setIsLoggedIn(false);
           setAdminUser(null);
@@ -358,12 +380,14 @@ export default function NutrimateAIAdminApp() {
         setAdminUser(res.data.user);
         setActiveTab('dash');
         refreshSharedData();
+        loadDashboardSummary();
       }
     } catch {
       // Fallback
       setIsLoggedIn(true);
       setActiveTab('dash');
       refreshSharedData();
+      loadDashboardSummary();
     }
   };
 
@@ -378,8 +402,14 @@ export default function NutrimateAIAdminApp() {
     showToast('Anda telah keluar.');
   };
 
-  const addActivity = useCallback((text: string, dayAgo = 0) => {
-    setActivities((prev) => [[text, dayAgo], ...prev]);
+  const addActivity = useCallback((text: string) => {
+    setDashSummary((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        recentActivity: [{ text, ts: new Date().toISOString() }, ...prev.recentActivity],
+      };
+    });
   }, []);
 
   const handleUpdateDonation = useCallback(async (id: any, newStatus: string, note?: string) => {
@@ -438,13 +468,16 @@ export default function NutrimateAIAdminApp() {
       .reduce((sum, p) => sum + p.amount, 0);
 
     if (activeTab === 'dash') {
+      const usersCount = dashSummary?.totalUsers ?? 0;
+      const totalDonationAmt = dashSummary?.totalConfirmedDonations ?? totalConfirmedDonations;
+      const donCount = dashSummary?.confirmedDonationCount ?? payments.filter((p) => p.status === 'berhasil').length;
       return [
-        ['Total Pengguna', STATS_DATA.users.toLocaleString('id-ID'), `+${STATS_DATA.today} Hari ini`],
+        ['Total Pengguna', usersCount.toLocaleString('id-ID'), 'Terdaftar di platform'],
         ['Pengajuan Menunggu Verifikasi', countByStatus('review'), 'Perlu ditinjau'],
         [
           'Total Donasi Tercatat',
-          `Rp ${Math.round((STATS_DATA.donTotal + totalConfirmedDonations) / 1e6)}jt`,
-          `Dari ${STATS_DATA.donCount + payments.filter((p) => p.status === 'berhasil').length} donasi`
+          `Rp ${Math.round(totalDonationAmt / 1e3)}rb`,
+          `Dari ${donCount} donasi terkonfirmasi`
         ]
       ];
     }
@@ -470,7 +503,7 @@ export default function NutrimateAIAdminApp() {
       ['Belum Dibalas', unrepliedCount, 'Perlu ditindaklanjuti'],
       ['Sudah Dibalas', repliedCount, 'Terkirim ke email']
     ];
-  }, [activeTab, donations, messages, payments, withdrawals]);
+  }, [activeTab, donations, messages, payments, withdrawals, dashSummary]);
 
   const pageHeaderTitles = {
     dash: {
@@ -613,9 +646,10 @@ export default function NutrimateAIAdminApp() {
             <>
               {activeTab === 'dash' && (
                 <DashboardView
-                  donations={donations}
-                  messages={messages}
-                  activities={activities}
+                  summary={dashSummary}
+                  loading={dashSummaryLoading}
+                  error={dashSummaryError}
+                  onRetry={loadDashboardSummary}
                 />
               )}
               {activeTab === 'don' && (
