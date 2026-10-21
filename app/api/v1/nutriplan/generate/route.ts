@@ -9,7 +9,7 @@ import {
   resolveItemForMeal,
   MEAL_SLOTS_META,
 } from "@/lib/nutriplan/catalogue";
-import { callGemini, type GeminiDay } from "@/lib/nutriplan/gemini";
+import { generateCataloguePlan, type GeneratedDayPlan } from "@/lib/nutriplan/generator";
 import { NutritionContextType } from "@prisma/client";
 
 const VALID_CATEGORIES = ["PREGNANCY", "BREASTFEEDING", "CHILD"] as const;
@@ -70,11 +70,11 @@ function extractAllergens(
 }
 
 /**
- * Validate and resolve a single Gemini day against the catalogue.
+ * Validate and resolve a single generated day against the catalogue.
  * Returns null on any structural error; caller should abort generation.
  */
 function resolveDay(
-  geminiDay: GeminiDay,
+  generatedDay: GeneratedDayPlan,
   allowedIdSet: Set<string>,
   dailyBudgetIDR: number,
   isChild: boolean,
@@ -88,7 +88,7 @@ function resolveDay(
   isOverBudget: boolean;
   dailyTips: string;
 } | { error: string } {
-  const { dayIndex, dailyTips, meals } = geminiDay;
+  const { dayIndex, dailyTips, meals } = generatedDay;
 
   if (!Number.isInteger(dayIndex) || dayIndex < 1 || dayIndex > 30) {
     return { error: `dayIndex out of range: ${dayIndex}` };
@@ -158,6 +158,13 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const categoryParam = String(body?.category ?? "").toUpperCase();
+    const isRegenerate = Boolean(body?.regenerate);
+    const excludeWords: string[] = Array.isArray(body?.excludeWords)
+      ? body.excludeWords.map((w: unknown) => String(w || "").trim()).filter(Boolean)
+      : [];
+    const budgetFactor = typeof body?.budgetFactor === "number" && body.budgetFactor > 0
+      ? body.budgetFactor
+      : 1;
 
     if (!VALID_CATEGORIES.includes(categoryParam as ValidCategory)) {
       return errorResponse(
@@ -189,13 +196,35 @@ export async function POST(req: NextRequest) {
     }
 
     const latestAssessment = context.assessments[0];
+
+    // If NOT regenerating, check if a plan already exists for this assessment
+    if (!isRegenerate) {
+      const existingPlan = await prisma.nutritionPlan.findFirst({
+        where: { assessmentId: latestAssessment.id, userId: user.id, status: "READY" },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (existingPlan) {
+        return successResponse("Rencana gizi aktif sudah tersedia.", {
+          planId: existingPlan.id,
+          category: existingPlan.category,
+          periodStart: existingPlan.periodStart,
+          periodEnd: existingPlan.periodEnd,
+          dailyBudget: Number(existingPlan.dailyBudget),
+          version: existingPlan.version,
+          status: existingPlan.status,
+        });
+      }
+    }
+
     const formData =
       (latestAssessment.contextSnapshot as { formData?: Record<string, unknown> } | null)
         ?.formData ?? null;
 
-    // 2. Determine budget — from formData or default
+    // 2. Determine budget — from formData or default, modified by budgetFactor if regenerating
     const rawBudget = Number(formData?.bud ?? 0);
-    const dailyBudgetIDR = rawBudget > 0 ? rawBudget * 1000 : 25000; // formData.bud is in thousands
+    const baseBudgetIDR = rawBudget > 0 ? rawBudget * 1000 : 25000;
+    const dailyBudgetIDR = Math.max(10000, Math.round(baseBudgetIDR * budgetFactor));
 
     // 3. Allergen extraction and allowed ID set
     const userAllergens = extractAllergens(category, formData);
@@ -210,23 +239,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Call Gemini OUTSIDE any database transaction
+    // 4. Generate randomized 30-day plan locally from catalogue
     const nutritionContext = buildNutritionContext(category, formData);
-    const geminiOutput = await callGemini({
+    const seed = Date.now() ^ Math.floor(Math.random() * 1000000);
+    const generatedOutput = generateCataloguePlan({
       category,
       allowedItemIds: allowedIds,
       dailyBudgetIDR,
-      mealSlots: MEAL_SLOTS_META.map((s) => ({ time: s.time, label: s.label })),
-      nutritionContext,
-      totalDays: 30,
+      excludeWords,
+      seed,
     });
 
-    // 5. Validate Gemini output structure
-    if (!Array.isArray(geminiOutput.days) || geminiOutput.days.length !== 30) {
+    // 5. Validate generated output structure
+    if (!Array.isArray(generatedOutput.days) || generatedOutput.days.length !== 30) {
       return errorResponse(
-        "Pembuatan rekomendasi gagal: respons AI tidak menghasilkan 30 hari.",
-        502,
-        "GEMINI_INVALID_DAYS_COUNT"
+        "Pembuatan rekomendasi menu gagal menghasilkan 30 hari.",
+        500,
+        "INVALID_DAYS_COUNT"
       );
     }
 
@@ -238,51 +267,53 @@ export async function POST(req: NextRequest) {
 
     // Resolve all 30 days before entering DB transaction
     const resolvedDays: Awaited<ReturnType<typeof resolveDay>>[] = [];
-    for (const geminiDay of geminiOutput.days) {
-      const result = resolveDay(geminiDay, allowedIdSet, dailyBudgetIDR, isChild, periodStart);
+    for (const day of generatedOutput.days) {
+      const result = resolveDay(day, allowedIdSet, dailyBudgetIDR, isChild, periodStart);
       resolvedDays.push(result);
       if ("error" in result) {
         return errorResponse(
-          `Pembuatan rekomendasi gagal: ${result.error}`,
-          502,
-          "GEMINI_VALIDATION_FAILED"
+          `Pembuatan rekomendasi menu gagal: ${result.error}`,
+          500,
+          "VALIDATION_FAILED"
         );
       }
     }
 
-    // Ensure all 30 dayIndex 1-30 are present and within hard daily budget
+    // Ensure all 30 dayIndex 1-30 are present
     const dayIndices = resolvedDays.map((d) => ("dayIndex" in d ? d.dayIndex : 0));
     for (let i = 1; i <= 30; i++) {
       if (!dayIndices.includes(i)) {
         return errorResponse(
-          `Pembuatan rekomendasi gagal: hari ke-${i} tidak ada dalam respons AI.`,
-          502,
-          "GEMINI_MISSING_DAY"
+          `Pembuatan rekomendasi menu gagal: hari ke-${i} tidak ada.`,
+          500,
+          "MISSING_DAY"
         );
       }
     }
 
-    // Hard budget check: reject immediately if any day exceeds dailyBudgetIDR
-    for (const d of resolvedDays) {
-      if ("estimatedCostIDR" in d && d.estimatedCostIDR > dailyBudgetIDR) {
-        return errorResponse(
-          `Pembuatan rekomendasi gagal: estimasi biaya hari ke-${d.dayIndex} (Rp ${d.estimatedCostIDR.toLocaleString("id-ID")}) melebihi pagu anggaran harian (Rp ${dailyBudgetIDR.toLocaleString("id-ID")}).`,
-          422,
-          "BUDGET_CEILING_EXCEEDED"
-        );
-      }
-    }
-
-    // 6. Persist in one atomic transaction — idempotency check inside
+    // 6. Persist in one atomic transaction
     const plan = await prisma.$transaction(async (tx) => {
-      // Idempotency: if a plan already exists for this assessment, return it
-      const existing = await tx.nutritionPlan.findFirst({
-        where: { assessmentId: latestAssessment.id, userId: user.id },
-        orderBy: { createdAt: "desc" },
-      });
+      // If NOT regenerating, double check idempotency inside transaction
+      if (!isRegenerate) {
+        const existing = await tx.nutritionPlan.findFirst({
+          where: { assessmentId: latestAssessment.id, userId: user.id },
+          orderBy: { createdAt: "desc" },
+        });
 
-      if (existing) {
-        return existing;
+        if (existing) {
+          return existing;
+        }
+      }
+
+      // If regenerating, calculate new version number
+      let nextVersion = 1;
+      if (isRegenerate) {
+        const latestPlan = await tx.nutritionPlan.findFirst({
+          where: { userId: user.id, category: category as NutritionContextType },
+          orderBy: { version: "desc" },
+          select: { version: true },
+        });
+        nextVersion = (latestPlan?.version ?? 0) + 1;
       }
 
       const newPlan = await tx.nutritionPlan.create({
@@ -290,14 +321,14 @@ export async function POST(req: NextRequest) {
           assessmentId: latestAssessment.id,
           userId: user.id,
           category: category as NutritionContextType,
-          version: 1,
+          version: nextVersion,
           periodStart,
           periodEnd,
           dailyBudget: dailyBudgetIDR,
           targetNutrition: nutritionContext.slice(0, 1000),
           status: "READY",
-          modelProvider: "9Router",
-          modelName: process.env.NUTRIPLAN_MODEL || "lomba",
+          modelProvider: "CatalogueRules",
+          modelName: "local-catalogue-v1",
           isApproved: false,
           readyAt: new Date(),
         },
@@ -323,7 +354,7 @@ export async function POST(req: NextRequest) {
     });
 
     return successResponse(
-      "Rencana gizi 30 hari berhasil dibuat.",
+      "Rencana menu 30 hari berhasil disusun.",
       {
         planId: plan.id,
         category: plan.category,
@@ -340,44 +371,8 @@ export async function POST(req: NextRequest) {
       if (err.message === "UNAUTHORIZED") {
         return errorResponse("Sesi tidak valid atau telah berakhir.", 401, "UNAUTHORIZED");
       }
-      if (err.message.startsWith("GEMINI_API_ERROR:")) {
-        return errorResponse(
-          "Layanan AI sedang tidak tersedia. Coba beberapa saat lagi.",
-          502,
-          "GEMINI_API_ERROR"
-        );
-      }
-      if (err.message === "GEMINI_EMPTY_RESPONSE:SAFETY" || err.message.startsWith("GEMINI_EMPTY_RESPONSE")) {
-        return errorResponse(
-          "Layanan AI tidak dapat menghasilkan rekomendasi saat ini. Coba beberapa saat lagi.",
-          502,
-          "GEMINI_EMPTY_RESPONSE"
-        );
-      }
-      if (err.message === "GEMINI_INVALID_JSON" || err.message.startsWith("GEMINI_INVALID_STRUCTURE")) {
-        return errorResponse(
-          "Pembuatan rekomendasi gagal: respons AI tidak valid.",
-          502,
-          "GEMINI_INVALID_RESPONSE"
-        );
-      }
-      if (err.message === "GEMINI_API_KEY environment variable is not set.") {
-        console.error("NutriPlan generate: GEMINI_API_KEY is missing.");
-        return errorResponse(
-          "Layanan rekomendasi AI belum dikonfigurasi.",
-          503,
-          "GEMINI_NOT_CONFIGURED"
-        );
-      }
-      if (err.name === "AbortError") {
-        return errorResponse(
-          "Permintaan ke layanan AI melebihi batas waktu. Coba beberapa saat lagi.",
-          504,
-          "GEMINI_TIMEOUT"
-        );
-      }
     }
     console.error("POST /nutriplan/generate error:", err instanceof Error ? err.message : "Unknown");
-    return errorResponse("Terjadi kesalahan pada server.", 500, "INTERNAL_SERVER_ERROR");
+    return errorResponse("Terjadi kesalahan pada server saat menyusun menu.", 500, "INTERNAL_SERVER_ERROR");
   }
 }

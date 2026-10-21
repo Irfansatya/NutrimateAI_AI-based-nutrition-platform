@@ -72,9 +72,9 @@ function PlanSkeleton({ isGenerating = false }: { isGenerating?: boolean }) {
             animation: "spin 1s linear infinite"
           }} />
           <div style={{ fontSize: 14 }}>
-            <b>NutriMate AI sedang menyusun rencana gizi 30 hari...</b>
+            <b>NutriMate sedang menyusun variasi rencana gizi 30 hari...</b>
             <div style={{ fontSize: 13, color: "#047857", marginTop: 2 }}>
-              Menyesuaikan bahan lokal dengan kebutuhan nutrisi dan batasan anggaran harian Anda (±10–25 detik).
+              Menyesuaikan bahan lokal dengan batasan anggaran harian Anda dari katalog pangan gizi.
             </div>
           </div>
         </div>
@@ -252,7 +252,7 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
           }
           setLoading(false);
           isFetchingRef.current = false;
-          onToastRef.current("Rencana gizi 30 hari berhasil disusun oleh AI.");
+          onToastRef.current("Rencana gizi 30 hari berhasil disusun.");
           return;
         }
       }
@@ -360,7 +360,7 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
   const meals = p.m.filter(m => m.items.length);
   const adj = [fbExclude.length ? "tanpa " + fbExclude.join(", ") : "", budgetFactor < 1 ? "anggaran dihemat" : ""].filter(Boolean).join("; ");
 
-  function regen() {
+  async function regen() {
     const t = fbText.toLowerCase();
     const newExclude = [...fbExclude];
     let newBF = budgetFactor;
@@ -377,12 +377,45 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
     setFbExclude(newExclude); setBudgetFactor(newBF);
     const ns = seed + 1; setSeed(ns);
     setLoading(true); setFbText("");
-    setTimeout(() => {
+
+    const dbCategory = mapCategoryToDb(planCat);
+    try {
+      const genRes = await apiGeneratePlan(dbCategory, {
+        regenerate: true,
+        excludeWords: newExclude,
+        budgetFactor: newBF,
+      });
+
+      if (genRes.success && genRes.data?.planId) {
+        const afterGenRes = await apiGetCurrentPlan(dbCategory);
+        if (afterGenRes.success && afterGenRes.data?.plan) {
+          const freshPlan: NutriPlanData = afterGenRes.data.plan;
+          const mapped = mapBackendPlanToDayPlans(freshPlan);
+          setLocalPlan(mapped);
+          setActivePlanMeta(freshPlan);
+          setDailyTipsList(freshPlan.days.map((d) => d.dailyTips || ""));
+          setApproved(false);
+          setSel(0);
+          if (mapped.length > 0) {
+            setViewMonth(new Date(mapped[0].d.getFullYear(), mapped[0].d.getMonth(), 1));
+          }
+          setLoading(false);
+          onToast(words.length ? "Menu disusun ulang: " + words.join(", ") : "Variasi menu baru telah dibuat");
+          return;
+        }
+      }
+
+      // Fallback client preview if network error occurs during regen
       const newPlan = buildPlan(planCat, budget * newBF, newExclude, ns);
       setLocalPlan(newPlan); setSel(0); setLoading(false);
       setViewMonth(new Date(newPlan[0].d.getFullYear(), newPlan[0].d.getMonth(), 1));
       onToast(words.length ? "Menu disusun ulang: " + words.join(", ") : "Variasi menu baru telah dibuat");
-    }, 1300);
+    } catch {
+      const newPlan = buildPlan(planCat, budget * newBF, newExclude, ns);
+      setLocalPlan(newPlan); setSel(0); setLoading(false);
+      setViewMonth(new Date(newPlan[0].d.getFullYear(), newPlan[0].d.getMonth(), 1));
+      onToast(words.length ? "Menu disusun ulang: " + words.join(", ") : "Variasi menu baru telah dibuat");
+    }
   }
 
   function activateWhatsApp() {
@@ -457,7 +490,7 @@ export default function NutriPlan({ plan, planCat, budget, onGoCheck, onToast, u
               ) : (
                 <div className="db-fbcard">
                   <h3>Belum sesuai?</h3>
-                  <p className="db-sub">Tulis komentar, AI akan menyusun ulang rekomendasi sampai Bunda setuju.</p>
+                  <p className="db-sub">Tulis komentar bahan atau preferensi untuk menyusun variasi menu baru.</p>
                   <textarea id="fb" placeholder="Contoh: tanpa ikan, bosan dengan tempe, buat lebih hemat"
                     value={fbText} onChange={e => setFbText(e.target.value)} style={{ marginTop: 8 }} />
                   <div className="db-sg">

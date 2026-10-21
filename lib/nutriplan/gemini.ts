@@ -113,7 +113,19 @@ Pastikan:
 }
 
 /**
+ * Error thrown when the 9Router / AI service is unreachable or connection is refused.
+ */
+export class RouterUnavailableError extends Error {
+  constructor(message = "ROUTER_UNAVAILABLE") {
+    super(message);
+    this.name = "RouterUnavailableError";
+  }
+}
+
+/**
  * Call OpenAI-compatible 9Router API and return structured plan output.
+ * Retries transient connection/network errors and 5xx statuses up to 2 times
+ * with short exponential backoff (1s, 2s) within an overall bounded budget.
  * Throws on API error, timeout, or JSON parse failure.
  */
 export async function callGemini(opts: GeminiGenerateOptions): Promise<GeminiPlanOutput> {
@@ -138,32 +150,95 @@ export async function callGemini(opts: GeminiGenerateOptions): Promise<GeminiPla
     stream: false,
   };
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60_000); // 60s hard timeout
+  const MAX_ATTEMPTS = 3; // 1 initial + 2 retries
+  const OVERALL_TIMEOUT_MS = 60_000;
+  const overallStart = Date.now();
 
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
-  } catch (err: unknown) {
-    if (err instanceof Error && err.name === "AbortError") {
+  let response: Response | null = null;
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const elapsed = Date.now() - overallStart;
+    const remainingBudget = OVERALL_TIMEOUT_MS - elapsed;
+
+    if (remainingBudget <= 2_000) {
       throw new Error("GEMINI_TIMEOUT");
     }
-    throw err;
-  } finally {
-    clearTimeout(timeout);
+
+    // Allocate per-attempt timeout bounded by remaining budget, max 45s per attempt
+    const attemptTimeoutMs = Math.min(45_000, remainingBudget);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), attemptTimeoutMs);
+
+    try {
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+      lastError = null;
+    } catch (err: unknown) {
+      lastError = err;
+      response = null;
+
+      if (err instanceof Error && err.name === "AbortError") {
+        // If overall budget is expired, treat as genuine timeout
+        if (Date.now() - overallStart >= OVERALL_TIMEOUT_MS - 2_000) {
+          throw new Error("GEMINI_TIMEOUT");
+        }
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // Evaluate response or connection error
+    if (response) {
+      if (response.ok) {
+        break; // Success, proceed to body parsing
+      }
+
+      const status = response.status;
+      // Do NOT retry client errors (400, 401, 403, 404, 422, etc.)
+      if (status < 500) {
+        console.error(`AI Router client error: HTTP ${status}`);
+        throw new Error(`GEMINI_API_ERROR:${status}`);
+      }
+
+      // 5xx (502, 503, 504, etc.) are eligible for retry
+      lastError = new Error(`HTTP_${status}`);
+    }
+
+    // If we reach here, attempt failed. Decide if we can retry.
+    if (attempt < MAX_ATTEMPTS) {
+      const backoffMs = attempt === 1 ? 1_000 : 2_000;
+      const willExceed = Date.now() - overallStart + backoffMs >= OVERALL_TIMEOUT_MS - 2_000;
+      if (willExceed) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    }
   }
 
-  if (!response.ok) {
-    // Log status only — no API key echoed
-    console.error(`AI Router error: HTTP ${response.status}`);
+  // If after attempts we don't have a successful response:
+  if (!response || !response.ok) {
+    if (lastError instanceof Error && lastError.name === "AbortError") {
+      throw new Error("GEMINI_TIMEOUT");
+    }
+
+    if (!response) {
+      // Network/connection failure (ECONNREFUSED, fetch failed, DNS failure, etc.)
+      console.error("AI Router connection failure after retries:", lastError instanceof Error ? lastError.message : "Unreachable");
+      throw new RouterUnavailableError();
+    }
+
+    console.error(`AI Router error after retries: HTTP ${response.status}`);
+    if ([502, 503, 504].includes(response.status)) {
+      throw new RouterUnavailableError();
+    }
     throw new Error(`GEMINI_API_ERROR:${response.status}`);
   }
 

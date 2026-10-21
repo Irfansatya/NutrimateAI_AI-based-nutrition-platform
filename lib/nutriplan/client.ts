@@ -48,12 +48,20 @@ export async function apiGetCurrentPlan(category?: string) {
   return res.json();
 }
 
-export async function apiGeneratePlan(category: string) {
+export async function apiGeneratePlan(
+  category: string,
+  options?: { regenerate?: boolean; excludeWords?: string[]; budgetFactor?: number }
+) {
   const res = await fetch("/api/v1/nutriplan/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({ category }),
+    body: JSON.stringify({
+      category,
+      regenerate: Boolean(options?.regenerate),
+      excludeWords: options?.excludeWords || [],
+      budgetFactor: options?.budgetFactor ?? 1,
+    }),
   });
   return res.json();
 }
