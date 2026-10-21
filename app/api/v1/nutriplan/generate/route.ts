@@ -205,12 +205,18 @@ export async function POST(req: NextRequest) {
       });
 
       if (existingPlan) {
+        const rawExistingBudget = Number(existingPlan.dailyBudget);
+        const normalizedExistingBudget =
+          rawExistingBudget >= 10_000_000 && rawExistingBudget % 1000 === 0
+            ? rawExistingBudget / 1000
+            : rawExistingBudget;
+
         return successResponse("Rencana gizi aktif sudah tersedia.", {
           planId: existingPlan.id,
           category: existingPlan.category,
           periodStart: existingPlan.periodStart,
           periodEnd: existingPlan.periodEnd,
-          dailyBudget: Number(existingPlan.dailyBudget),
+          dailyBudget: normalizedExistingBudget,
           version: existingPlan.version,
           status: existingPlan.status,
         });
@@ -222,8 +228,15 @@ export async function POST(req: NextRequest) {
         ?.formData ?? null;
 
     // 2. Determine budget — from formData or default, modified by budgetFactor if regenerating
+    // formData.bud is stored in whole IDR (range 10,000 to 500,000, default 25,000).
+    // Backward-compatibility: if an older record stored budget in thousands (e.g. 25 instead of 25,000), normalize it.
     const rawBudget = Number(formData?.bud ?? 0);
-    const baseBudgetIDR = rawBudget > 0 ? rawBudget * 1000 : 25000;
+    const baseBudgetIDR =
+      rawBudget > 0
+        ? rawBudget < 1000
+          ? rawBudget * 1000
+          : rawBudget
+        : 25000;
     const dailyBudgetIDR = Math.max(10000, Math.round(baseBudgetIDR * budgetFactor));
 
     // 3. Allergen extraction and allowed ID set

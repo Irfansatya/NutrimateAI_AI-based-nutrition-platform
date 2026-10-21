@@ -48,6 +48,14 @@ export async function GET(req: NextRequest) {
       return successResponse("Belum ada rencana gizi aktif.", { plan: null });
     }
 
+    // Backward-compatibility: if an older plan record had dailyBudget erroneously multiplied by 1,000 (e.g. >= 10,000,000)
+    // while catalogue costs are ~15,000-30,000 IDR, normalize to actual IDR.
+    const rawDailyBudget = Number(plan.dailyBudget);
+    const normalizedDailyBudget =
+      rawDailyBudget >= 10_000_000 && rawDailyBudget % 1000 === 0
+        ? rawDailyBudget / 1000
+        : rawDailyBudget;
+
     return successResponse("Rencana gizi berhasil diambil.", {
       plan: {
         id: plan.id,
@@ -56,7 +64,7 @@ export async function GET(req: NextRequest) {
         version: plan.version,
         periodStart: plan.periodStart,
         periodEnd: plan.periodEnd,
-        dailyBudget: Number(plan.dailyBudget),
+        dailyBudget: normalizedDailyBudget,
         targetNutrition: plan.targetNutrition,
         status: plan.status,
         modelProvider: plan.modelProvider,
