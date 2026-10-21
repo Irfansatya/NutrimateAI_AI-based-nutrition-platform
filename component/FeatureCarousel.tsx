@@ -2,38 +2,37 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import PingPongVideo from "@/component/PingPongVideo";
 
 const features = [
   {
     title: "Analisis Kondisi Anda",
     desc: "Kami pahami kondisi ekonomi, kesehatan, dan lingkungan anda dahulu agar rekomendasi menu bisa lebih tepat.",
-    image: "/GambarFitur1.png",
+    image: "/IlustrasiFitur1.png",
   },
   {
     title: "Susun Asupan Nutrisi",
     desc: "Tak perlu bingung memikirkan menu setiap hari. Kami susun rencana gizi bulanan yang terjangkau dan sesuai.",
-    image: "/GambarFitur2.png",
+    image: "/IlustrasiFitur2.png",
   },
   {
     title: "Pantau Perkembangan",
     desc: "Catat berat dan tinggi si kecil tiap bulan, lihat perkembangannya, dan menu gizinya akan ikut disesuaikan.",
-    image: "/GambarFitur3.png",
+    image: "/IlustrasiFitur3.png",
   },
   {
     title: "Ingatkan Anda Tiap Hari",
     desc: "Tak perlu bolak-balik membuka website. Kami ingatkan kebutuhan gizi si kecil lewat WhatsApp setiap hari.",
-    image: "/GambarFitur4.png",
+    image: "/IlustrasiFitur4.png",
   },
   {
     title: "Galang Donasi Gizi",
     desc: "Dana belum cukup untuk gizi buah hati? Ceritakan kebutuhan Anda, dan biarkan masyarakat ikut membantu.",
-    image: "/GambarFitur5.png",
+    image: "/IlustrasiFitur5.png",
   },
   {
     title: "Salurkan Bantuan Gizi",
     desc: "Bantuan anda akan sampai langsung ke ibu dan anak yang membutuhkan, menjadi sepiring gizi untuk tumbuh sehat.",
-    image: "/GambarFitur6.png",
+    image: "/IlustrasiFitur6.png",
   },
 ];
 
@@ -132,17 +131,12 @@ export default function FeatureCarousel() {
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Background video (ping-pong, slow, blurred) */}
-      <div className="feature-bg absolute inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden="true">
-        <PingPongVideo
-          src="/videos/video-background.mp4"
-          poster="/bg-fitur.png"
-          playbackRate={0.5}
-          className="absolute inset-0 w-full h-full object-cover blur-[3px] scale-[1.06] will-change-transform"
-        />
-        <div className="absolute -inset-2.5 bg-[linear-gradient(110deg,rgba(3,30,18,0.8),rgba(0,69,46,0.38)_48%,rgba(15,91,90,0.35)),rgba(255,255,255,0.12)] backdrop-blur-[14px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_5%_0%,rgba(9,180,132,0.25),transparent_35%),linear-gradient(0deg,rgba(0,24,13,0.23),transparent_48%)]" />
-      </div>
+      {/* Background gambar statis untuk area fitur */}
+      <div
+        className="feature-bg absolute inset-0 -z-10 overflow-hidden pointer-events-none bg-cover bg-center"
+        style={{ backgroundImage: "url('/bg-fitur-hero.png')" }}
+        aria-hidden="true"
+      />
 
       {/* Floating pill label */}
       <div className="feature-label w-max max-w-[calc(100%-32px)] mx-auto -translate-y-[17px] bg-[#E6F2EE] text-[#0c4537] rounded-xl px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-center gap-2 text-sm sm:text-base font-medium shadow-[0_2px_10px_rgba(0,0,0,0.05)]">

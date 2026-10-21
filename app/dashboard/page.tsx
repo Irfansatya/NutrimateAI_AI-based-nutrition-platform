@@ -673,14 +673,15 @@ export default function DashboardPage() {
       {toastMsg && <Toast message={toastMsg} onDone={() => setToastMsg(null)} />}
 
       {/* HERO HEADER */}
-      <header id="db-hero">
-        {/* Video background: diperlambat, di-blur, diputar maju-mundur (ping-pong) */}
-        <PingPongVideo
-          src="/videos/video-background.mp4"
-          poster="/bg-fitur.png"
-          playbackRate={1.0}
-          className="db-hero-video"
-        />
+        <header
+          id="db-hero"
+          style={{
+            backgroundImage: "url('/bg-fitur-hero.png')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }}
+        >
 
         <div className="db-hero-in">
           <div className="db-hero-top">

@@ -4,9 +4,9 @@ import React from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NutrimateAI — Nutrisi Lebih Tepat untuk Ibu dan Si Kecil",
+  title: "NutriMate AI — Nutrisi Lebih Tepat untuk Ibu dan Si Kecil",
   description:
-    "NutrimateAI adalah platform pendamping nutrisi berbasis AI untuk ibu hamil dan ibu dengan anak berusia di bawah 2 tahun, dilengkapi rekomendasi bahan pangan dan sistem bantuan donasi.",
+    "NutriMate AI adalah platform pendamping nutrisi berbasis AI untuk ibu hamil dan ibu dengan anak berusia 0 - 2 tahun, dilengkapi rekomendasi bahan pangan dan sistem bantuan donasi.",
   icons: {
     icon: "/icon.png",
   },

@@ -98,18 +98,11 @@ export default function LandingPage() {
   const [heroCursorVisible, setHeroCursorVisible] = useState(true);
 
   const [aiInView, setAiInView] = useState(false);
-  const [videoVisible, setVideoVisible] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [showVideoControl, setShowVideoControl] = useState(false);
-  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
-  const controlTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [practitionerInView, setPractitionerInView] = useState(false);
   const [usersInView, setUsersInView] = useState(false);
   const [closingInView, setClosingInView] = useState(false);
 
-  // Video element ref
-  const videoRef = useRef<HTMLVideoElement>(null);
   const aiSectionRef = useRef<HTMLElement>(null);
   const practitionerSectionRef = useRef<HTMLElement>(null);
   const usersSectionRef = useRef<HTMLElement>(null);
@@ -144,31 +137,10 @@ export default function LandingPage() {
 
   // 2. AI Section Typewriter
   const aiType = useScrollTypewriter(
-    "Dilengkapi asisten AI yang membantu memberikan rekomendasi nutrisi sesuai kondisi Anda.",
-    32,
+    "NutrimateAI dilengkapi dengan teknologi kecerdasan buatan untuk membantu menganalisis kondisi dan lingkungan Anda agar rekomendasi nutrisi dapat lebih sesuai.",
+    28,
     aiInView
   );
-
-  // Video appears and plays after AI typing finishes
-  useEffect(() => {
-    if (aiType.isFinished) {
-      setVideoVisible(true);
-      if (videoRef.current) {
-        videoRef.current.muted = true;
-        videoRef.current
-          .play()
-          .then(() => setIsPlaying(true))
-          .catch(() => setAutoplayBlocked(true));
-      }
-    }
-  }, [aiType.isFinished]);
-
-  // Bersihkan timer tombol kontrol video saat unmount
-  useEffect(() => {
-    return () => {
-      if (controlTimerRef.current) clearTimeout(controlTimerRef.current);
-    };
-  }, []);
 
   // 3. Practitioner Typewriter
   const practitionerType = useScrollTypewriter(
@@ -242,32 +214,6 @@ export default function LandingPage() {
   const handleOpenAuth = (mode: "signin" | "signup") => {
     setAuthMode(mode);
     setAuthModalOpen(true);
-  };
-
-  // Tombol play/pause hanya muncul sebentar setelah video ditekan
-  const flashVideoControl = () => {
-    if (controlTimerRef.current) clearTimeout(controlTimerRef.current);
-    setShowVideoControl(true);
-    controlTimerRef.current = setTimeout(() => setShowVideoControl(false), 900);
-  };
-
-  const toggleVideo = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    setAutoplayBlocked(false);
-    if (video.paused) {
-      video
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          flashVideoControl();
-        })
-        .catch(() => {});
-    } else {
-      video.pause();
-      setIsPlaying(false);
-      flashVideoControl();
-    }
   };
 
   const featureDescriptions: Record<string, string> = {
@@ -465,62 +411,46 @@ export default function LandingPage() {
         <section
           id="asisten-ai"
           ref={aiSectionRef}
-          className="ai-section py-20 sm:py-28 bg-white"
+          className="ai-section bg-white py-16 sm:py-20 lg:py-24"
         >
-          <div className="container w-[min(calc(100%-32px),1240px)] mx-auto">
-            <h2 className="section-title text-3xl sm:text-4xl lg:text-[45px] font-medium leading-[1.14] tracking-[-1.5px] max-w-[800px] mb-10 sm:mb-14">
-              {aiType.displayText}
-              {!aiType.isFinished && (
-                <span className="type-cursor" aria-hidden="true" />
-              )}
-            </h2>
-
-            {/* Video Player Box with scroll fade-in */}
-            <div
-              className={`video-wrap relative w-full aspect-video rounded-2xl sm:rounded-3xl overflow-hidden border-2 sm:border-4 border-[#d2d5d4] bg-[#f4f5f4] shadow-md transition-all duration-700 ${
-                videoVisible
-                  ? "opacity-100 translate-y-0 pointer-events-auto"
-                  : "opacity-0 translate-y-8 pointer-events-none"
-              }`}
-            >
-              <video
-                ref={videoRef}
-                playsInline
-                loop
-                muted
-                preload="none"
-                className="w-full h-full object-cover"
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-              >
-                <source src="/videos/video_AsistenAI.mp4" type="video/mp4" />
-                Browser Anda tidak mendukung tag video.
-              </video>
-
-              {/* Klik video untuk play/pause. Tombol hanya muncul sebentar setelah diklik */}
-              <div
-                onClick={toggleVideo}
-                className="absolute inset-0 flex items-center justify-center bg-black/10 cursor-pointer"
-              >
-                <button
-                  type="button"
-                  aria-label={isPlaying ? "Jeda video" : "Putar video"}
-                  tabIndex={-1}
-                  className={`w-13 sm:w-14 h-13 sm:h-14 rounded-full bg-black/80 text-white flex items-center justify-center shadow-lg pointer-events-none transition-opacity duration-300 ${
-                    showVideoControl || autoplayBlocked ? "opacity-100" : "opacity-0"
-                  }`}
-                >
-                  {isPlaying ? (
-                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M7.5 5.5h3v13h-3zM13.5 5.5h3v13h-3z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-6 h-6 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8.5 5.7v12.6c0 .7.8 1.1 1.4.7l9-6.3c.5-.4.5-1.1 0-1.4l-9-6.3c-.6-.4-1.4 0-1.4.7Z" />
-                    </svg>
+          <div className="container w-[min(calc(100%-32px),1330px)] mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-[0.92fr_1.08fr] gap-10 lg:gap-16 items-center">
+              <div className="ai-copy max-w-[570px]">
+                <h2 className="text-[34px] sm:text-[42px] lg:text-[48px] font-medium leading-[1.12] tracking-[-1.6px] text-[#080b09] mb-5">
+                  Dilengkapi asisten AI
+                </h2>
+                <p className="text-[16px] sm:text-[18px] lg:text-[19px] leading-[1.8] text-[#555957] min-h-[150px] sm:min-h-[135px]">
+                  {aiType.displayText}
+                  {!aiType.isFinished && (
+                    <span className="type-cursor practitioner-cursor" aria-hidden="true" />
                   )}
-                </button>
+                </p>
               </div>
+
+              
+              <div
+                className="ai-visual relative w-full aspect-video rounded-[18px] sm:rounded-[22px] overflow-hidden bg-cover bg-center shadow-[0_16px_45px_rgba(5,65,43,0.12)]"
+                style={{ backgroundImage: "url('/bg-asisten.png')" }}
+              >
+                <div className="absolute left-1/2 top-1/2 w-[84%] aspect-video -translate-x-1/2 -translate-y-1/2 rounded-[9px] sm:rounded-[12px] overflow-hidden bg-white shadow-[0_8px_24px_rgba(0,0,0,0.14)]">
+                  <video
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="auto"
+                    controls={false}
+                    disablePictureInPicture
+                    disableRemotePlayback
+                    aria-label="Video penjelasan Asisten AI NutrimateAI"
+                    className="block w-full h-full object-cover pointer-events-none"
+                  >
+                    <source src="/videos/videoAI.mp4" type="video/mp4" />
+                    Browser Anda tidak mendukung tag video.
+                  </video>
+                </div>
+              </div>
+
             </div>
           </div>
         </section>
