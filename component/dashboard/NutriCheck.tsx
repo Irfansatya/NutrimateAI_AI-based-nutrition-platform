@@ -7,6 +7,7 @@ import {
   CATS, PROVINCES, buildPlan, MEAL_SLOTS,
   type Cat, type DayPlan,
 } from "@/lib/dashboard/mockData";
+import { apiSaveAssessment } from "@/lib/nutricheck/client";
 
 // ===== FORM SCHEMA =====
 type FieldType = "num" | "sel" | "rad" | "chk" | "area" | "date" | "time" | "txt" | "bud";
@@ -462,7 +463,7 @@ export default function NutriCheck({
     return errs;
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (showAiWait) return;
     const errs = validateStep();
     setErrors(errs);
@@ -476,31 +477,51 @@ export default function NutriCheck({
       setStep(ns); setMaxStep(Math.max(maxStep, ns)); setErrors([]);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
-      // save growth
-      const bb = Number(d.bb), tb = Number(d.tb);
-      const x = cat === "hamil" ? Number(d.uk) : cat === "menyusui" ? Number(d.ub) : Number(d.ua);
-      if (bb > 0 && tb > 0 && !isNaN(x)) {
-        const now2 = new Date();
-        const ym = now2.getFullYear() * 12 + now2.getMonth();
-        const rec: GrowthRecord = { ym, x, bb, tb, bb0: Number(d.bb0) || null, jk: d.jk === "Laki-laki" ? "L" : "P" };
-        const existing = growth[cat].filter(r => r.ym !== ym);
-        onGrowthUpdate(cat, [...existing, rec].sort((a, b) => a.ym - b.ym));
-        onToast("Data bulan ini tersimpan di tab Perkembangan Kondisi");
-      }
-      // Proses: 4,5 dtk menyiapkan -> 3 dtk "rekomendasi siap" -> 3 dtk loading -> pindah ke NutriPlan
-      const STEP1 = 4500, STEP2 = 3000, LOAD = 3000;
+      // 1. Persist to backend first
       setShowAiWait(true); setAiPhase(0);
-      timers.current.forEach(clearTimeout);
-      timers.current = [
-        setTimeout(() => setAiPhase(1), STEP1),
-        setTimeout(() => setAiPhase(2), STEP1 + STEP2),
-        setTimeout(() => {
+
+      const categoryEnum = cat === "hamil" ? "PREGNANCY" : cat === "menyusui" ? "BREASTFEEDING" : "CHILD";
+      try {
+        const res = await apiSaveAssessment({
+          category: categoryEnum,
+          data: d,
+        });
+
+        if (!res.success) {
           setShowAiWait(false);
-          const budget = Number(d.bud) || 25000;
-          const plan = buildPlan(cat, budget, [], Date.now() % 9999);
-          onGoToPlan(plan, cat);
-        }, STEP1 + STEP2 + LOAD),
-      ];
+          onToast(res.message || "Gagal menyimpan asesmen ke server.");
+          return;
+        }
+
+        // 2. Update local growth chart state with saved metrics
+        const bb = Number(d.bb), tb = Number(d.tb);
+        const x = cat === "hamil" ? Number(d.uk) : cat === "menyusui" ? Number(d.ub) : Number(d.ua);
+        if (bb > 0 && tb > 0 && !isNaN(x)) {
+          const now2 = new Date();
+          const ym = now2.getFullYear() * 12 + now2.getMonth();
+          const rec: GrowthRecord = { ym, x, bb, tb, bb0: Number(d.bb0) || null, jk: d.jk === "Laki-laki" ? "L" : "P" };
+          const existing = growth[cat].filter(r => r.ym !== ym);
+          onGrowthUpdate(cat, [...existing, rec].sort((a, b) => a.ym - b.ym));
+          onToast("Data asesmen dan grafik perkembangan berhasil disimpan.");
+        }
+
+        // 3. AI generation simulation transition
+        const STEP1 = 4500, STEP2 = 3000, LOAD = 3000;
+        timers.current.forEach(clearTimeout);
+        timers.current = [
+          setTimeout(() => setAiPhase(1), STEP1),
+          setTimeout(() => setAiPhase(2), STEP1 + STEP2),
+          setTimeout(() => {
+            setShowAiWait(false);
+            const budget = Number(d.bud) || 25000;
+            const plan = buildPlan(cat, budget, [], Date.now() % 9999);
+            onGoToPlan(plan, cat);
+          }, STEP1 + STEP2 + LOAD),
+        ];
+      } catch {
+        setShowAiWait(false);
+        onToast("Terjadi gangguan jaringan saat menyimpan asesmen.");
+      }
     }
   }
 

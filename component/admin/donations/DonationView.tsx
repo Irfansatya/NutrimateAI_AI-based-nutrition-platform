@@ -4,10 +4,25 @@ import { useState, useMemo } from 'react';
 import { formatDaysAgo, formatRupiah, getProgressPercent, getRecipientLabel, getTotalCost } from '@/lib/admin/format';
 import { StatusBadge } from '@/component/admin/ui/Badge';
 import { ReviewModal } from '@/component/admin/donations/ReviewModal';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const DonationView = ({ donations, onUpdateDonation, onShowToast, onAddActivity }: { donations: any[]; onUpdateDonation: any; onShowToast: any; onAddActivity: any }) => {
+interface DonationViewProps {
+  donations: any[];
+  onUpdateDonation: (id: any, newStatus: string, note?: string) => Promise<any> | any;
+  onShowToast: (msg: string) => void;
+  onAddActivity: (msg: string) => void;
+  error?: string | null;
+  onRetry?: () => void;
+}
+
+export const DonationView = ({
+  donations,
+  onUpdateDonation,
+  onShowToast,
+  onAddActivity,
+  error,
+  onRetry,
+}: DonationViewProps) => {
   const [filter, setFilter] = useState('review');
-  const [activeDonationId, setActiveDonationId] = useState<number | null>(null);
+  const [activeDonationId, setActiveDonationId] = useState<number | string | null>(null);
 
   const tabs = [
     ['review', 'Menunggu'],
@@ -25,12 +40,13 @@ export const DonationView = ({ donations, onUpdateDonation, onShowToast, onAddAc
     [donations, activeDonationId]
   );
 
-  const handleFinishReview = (newStatus: string, activityMessage: string, note?: string) => {
-    onUpdateDonation(activeDonationId, newStatus, note);
+  const handleFinishReview = async (newStatus: string, activityMessage: string, note?: string) => {
+    if (!activeDonationId) return;
+    const res = await onUpdateDonation(activeDonationId, newStatus, note);
+    if (res && res.success === false) return;
     onAddActivity(activityMessage);
     setActiveDonationId(null);
     setFilter(newStatus);
-    onShowToast('Hasil verifikasi terkirim. Pengguna akan diberi tahu lewat NutriHelp.');
   };
 
   return (
@@ -48,7 +64,17 @@ export const DonationView = ({ donations, onUpdateDonation, onShowToast, onAddAc
         ))}
       </div>
 
-      {filteredDonations.length ? (
+      {error ? (
+        <div className="c empty" style={{ color: '#d9383a', padding: '32px 16px', textAlign: 'center' }}>
+          <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 16 }}>Gagal Memuat Pengajuan Donasi</p>
+          <p style={{ fontSize: 14, color: '#666', marginBottom: 16 }}>{error}</p>
+          {onRetry && (
+            <button className="btn o" onClick={onRetry}>
+              Coba Lagi
+            </button>
+          )}
+        </div>
+      ) : filteredDonations.length ? (
         filteredDonations.map((p: any) => (
           <div className="row" key={p.id}>
             <div>

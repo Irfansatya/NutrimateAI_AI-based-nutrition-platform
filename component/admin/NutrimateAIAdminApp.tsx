@@ -11,7 +11,6 @@ import {
   type WithdrawalRecord,
 } from '@/lib/admin/data/payments';
 import {
-  getAdminDonationsList,
   updateCampaignStatusByAdmin,
   getSharedPayments,
   saveSharedPayments,
@@ -23,11 +22,17 @@ import {
 } from '@/lib/shared/store';
 import {
   clearAdminSession,
-  hasAdminSession,
-  saveAdminSession,
   getVisitedAdminPages,
   markAdminPageVisited
 } from '@/lib/admin/session';
+import { apiGetMe, apiLogout, type SafeAuthUser } from '@/lib/auth/client';
+import { apiGetAdminCampaigns, apiAdminReviewCampaign } from '@/lib/nutrihelp/client';
+import { apiGetAdminDonations, apiAdminVerifyDonation } from '@/lib/nutriassist/client';
+import {
+  apiGetAdminWithdrawals,
+  apiAdminCompleteWithdrawal,
+  apiAdminRejectWithdrawal,
+} from '@/lib/nutriwallet/client';
 import { Icon } from '@/component/admin/ui/Icon';
 import { Logo } from '@/component/admin/ui/Logo';
 import { ModalWrapper } from '@/component/admin/ui/ModalWrapper';
@@ -46,7 +51,7 @@ export interface DonationItem {
 }
 
 export interface Donation {
-  id: number;
+  id: number | string;
   pem: string;
   nm: string;
   ket: string;
@@ -79,16 +84,21 @@ export type Activity = [string, number];
 
 export default function NutrimateAIAdminApp() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [adminUser, setAdminUser] = useState<SafeAuthUser | null>(null);
+  const [isVerifyingAuth, setIsVerifyingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState<'dash' | 'don' | 'pay' | 'msg'>('dash');
 
   // State Data dengan Type Casting
   const [donations, setDonations] = useState<Donation[]>([]);
+  const [donationsError, setDonationsError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES as Message[]);
   const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES as Activity[]);
 
   // State Pembayaran & Penarikan
   const [payments, setPayments] = useState<QrisPaymentRecord[]>([]);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
+  const [withdrawalsError, setWithdrawalsError] = useState<string | null>(null);
   const [wallets, setWallets] = useState<Record<string, number>>({});
 
   // Loading Skeleton Per Halaman (3 detik pada kunjungan pertama di sesi)
@@ -104,30 +114,195 @@ export default function NutrimateAIAdminApp() {
   const [toastMessage, setToastMessage] = useState('');
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
-  // Fungsi reload data tersimpan dari shared localStorage
-  const refreshSharedData = useCallback(() => {
-    setDonations(getAdminDonationsList());
-    setPayments(getSharedPayments());
-    setWithdrawals(getSharedWithdrawals());
-    setWallets(getSharedWallets());
+  // Helper konversi HelpCampaign DB ke Donation item Admin
+  const mapDbCampaignToAdminDonation = useCallback((camp: any): Donation => {
+    const stMap: Record<string, string> = {
+      REVIEW: 'review',
+      REVISION: 'revisi',
+      REJECTED: 'ditolak',
+      APPROVED: 'disetujui',
+      ACTIVE: 'disetujui', // Admin mengelompokkan active/approved ke tab 'disetujui' (Aktif)
+      COMPLETED: 'selesai',
+      CANCELED: 'ditolak',
+    };
+
+    const docObj = (camp.documents || {}) as any;
+    const manifest = docObj.manifest || {};
+    const docs = [
+      ...(manifest.ktp || []),
+      ...(manifest.kondisi || []),
+      ...(manifest.ekonomi || []),
+      ...(manifest.thumb || []),
+    ];
+
+    const confirmedDonationsSum = (camp.donations || []).reduce(
+      (sum: number, d: any) => sum + Number(d.amount),
+      0
+    );
+
+    const diffDays = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(camp.submittedAt).getTime()) / 864e5)
+    );
+
+    return {
+      id: camp.id, // String UUID kompatibel dengan review API
+      pem: camp.applicantName,
+      nm: camp.recipientName,
+      ket: camp.category === 'PREGNANCY' ? 'Ibu hamil' : camp.category === 'BREASTFEEDING' ? 'Ibu menyusui' : 'Anak',
+      kota: camp.city,
+      judul: camp.title,
+      story: camp.story,
+      items: (camp.items || []).map((it: any) => ({
+        n: it.name,
+        q: it.quantity,
+        c: Number(it.estimatedCost),
+      })),
+      st: stMap[camp.status] || 'review',
+      d: diffDays,
+      dur: camp.durationDays,
+      docs: docs.length > 0 ? docs : ['KTP_Pemohon.jpg', 'Dokumen_Kondisi.pdf', 'Bukti_Ekonomi.pdf'],
+      col: confirmedDonationsSum,
+      dn: camp.donations?.length || 0,
+      note: camp.adminNote || undefined,
+    };
   }, []);
 
-  // Inisialisasi Session Sesuai HTML Asli & Listen Sync Events
-  useEffect(() => {
-    if (hasAdminSession()) {
-      setIsLoggedIn(true);
-      refreshSharedData();
+  // Fungsi reload data tersimpan dari backend PostgreSQL (Campaigns) dan shared localStorage (Payments, Withdrawals, Wallets)
+  const refreshSharedData = useCallback(async () => {
+    // 1. Ambil kampanye dari PostgreSQL via API
+    setDonationsError(null);
+    try {
+      const campRes = await apiGetAdminCampaigns();
+      if (campRes.success && Array.isArray(campRes.data?.campaigns)) {
+        const dbDonations = campRes.data.campaigns.map(mapDbCampaignToAdminDonation);
+        setDonations(dbDonations);
+      } else {
+        setDonations([]);
+        setDonationsError(campRes.message || 'Gagal memuat kampanye dari server.');
+      }
+    } catch {
+      setDonations([]);
+      setDonationsError('Gagal terhubung ke server kampanye.');
     }
 
-    const handleSync = () => {
-      if (hasAdminSession()) {
-        refreshSharedData();
+    // 2. Ambil donasi/pembayaran QRIS dari PostgreSQL via API
+    setPaymentsError(null);
+    try {
+      const donRes = await apiGetAdminDonations();
+      if (donRes.success && Array.isArray(donRes.data?.donations)) {
+        const mappedPayments: QrisPaymentRecord[] = donRes.data.donations.map((d: any) => {
+          let st: 'verifikasi' | 'berhasil' | 'gagal' = 'verifikasi';
+          if (d.status === 'CONFIRMED') st = 'berhasil';
+          else if (d.status === 'REJECTED') st = 'gagal';
+
+          return {
+            id: d.id,
+            campaignId: d.campaignId,
+            campaignTitle: d.campaign?.title || 'Open Donasi',
+            recipient: d.campaign?.recipientName || 'Penerima',
+            amount: Number(d.amount),
+            donorName: d.isAnonymous ? 'Anonim' : d.donorName,
+            anonymous: d.isAnonymous,
+            message: d.message || undefined,
+            method: 'QRIS',
+            createdAt: new Date(d.createdAt).getTime(),
+            status: st,
+            verifiedAt: d.verifiedAt ? new Date(d.verifiedAt).getTime() : undefined,
+            verifiedBy: d.verifierAdmin?.name || undefined,
+          };
+        });
+        setPayments(mappedPayments);
+      } else {
+        setPayments([]);
+        setPaymentsError(donRes.message || 'Gagal memuat transaksi donasi.');
       }
+    } catch {
+      setPayments([]);
+      setPaymentsError('Gagal terhubung ke server transaksi donasi.');
+    }
+
+    // 3. Ambil permohonan pencairan dana dari PostgreSQL via API
+    setWithdrawalsError(null);
+    try {
+      const wdRes = await apiGetAdminWithdrawals();
+      if (wdRes.success && Array.isArray(wdRes.data?.withdrawals)) {
+        const nextWalletsMap: Record<string, number> = {};
+        const mappedWithdrawals: WithdrawalRecord[] = wdRes.data.withdrawals.map((w: any) => {
+          let st: 'diproses' | 'selesai' = 'diproses';
+          if (w.status === 'COMPLETED') st = 'selesai';
+
+          const userName = w.user?.name || w.accountHolder || 'Penerima Bantuan';
+          if (w.wallet) {
+            nextWalletsMap[userName] = Number(w.wallet.balance);
+          }
+
+          return {
+            id: w.id,
+            userId: w.userId,
+            userName,
+            bank: w.bankName,
+            acct: w.accountNumber,
+            acctMasked: '•••• ' + String(w.accountNumber).slice(-4),
+            name: w.accountHolder,
+            amount: Number(w.amount),
+            createdAt: new Date(w.createdAt).getTime(),
+            status: st,
+            processedAt: w.processedAt ? new Date(w.processedAt).getTime() : undefined,
+            processedBy: w.processor?.name || undefined,
+          };
+        });
+        setWithdrawals(mappedWithdrawals);
+        if (Object.keys(nextWalletsMap).length > 0) {
+          setWallets(nextWalletsMap);
+        }
+      } else {
+        setWithdrawals([]);
+        setWithdrawalsError(wdRes.message || 'Gagal memuat antrean penarikan dana.');
+      }
+    } catch {
+      setWithdrawals([]);
+      setWithdrawalsError('Gagal terhubung ke server penarikan dana.');
+    }
+  }, [mapDbCampaignToAdminDonation]);
+
+  // Inisialisasi Session via Backend apiGetMe() & Listen Sync Events
+  useEffect(() => {
+    let isMounted = true;
+
+    apiGetMe()
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.success && res.data?.user && res.data.user.role === 'ADMIN') {
+          setIsLoggedIn(true);
+          setAdminUser(res.data.user);
+          refreshSharedData();
+        } else {
+          setIsLoggedIn(false);
+          setAdminUser(null);
+        }
+        setIsVerifyingAuth(false);
+      })
+      .catch(() => {
+        if (isMounted) {
+          setIsLoggedIn(false);
+          setAdminUser(null);
+          setIsVerifyingAuth(false);
+        }
+      });
+
+    const handleSync = () => {
+      apiGetMe().then((res) => {
+        if (res.success && res.data?.user && res.data.user.role === 'ADMIN') {
+          refreshSharedData();
+        }
+      }).catch(() => {});
     };
 
     window.addEventListener(SYNC_EVENT_NAME, handleSync);
     window.addEventListener('storage', handleSync);
     return () => {
+      isMounted = false;
       window.removeEventListener(SYNC_EVENT_NAME, handleSync);
       window.removeEventListener('storage', handleSync);
     };
@@ -175,16 +350,30 @@ export default function NutrimateAIAdminApp() {
     }, 3200);
   }, []);
 
-  const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
-    setActiveTab('dash');
-    saveAdminSession();
-    refreshSharedData();
+  const handleLoginSuccess = async () => {
+    try {
+      const res = await apiGetMe();
+      if (res.success && res.data?.user && res.data.user.role === 'ADMIN') {
+        setIsLoggedIn(true);
+        setAdminUser(res.data.user);
+        setActiveTab('dash');
+        refreshSharedData();
+      }
+    } catch {
+      // Fallback
+      setIsLoggedIn(true);
+      setActiveTab('dash');
+      refreshSharedData();
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsLogoutModalOpen(false);
+    try {
+      await apiLogout();
+    } catch {}
     setIsLoggedIn(false);
+    setAdminUser(null);
     clearAdminSession();
     showToast('Anda telah keluar.');
   };
@@ -193,10 +382,39 @@ export default function NutrimateAIAdminApp() {
     setActivities((prev) => [[text, dayAgo], ...prev]);
   }, []);
 
-  const handleUpdateDonation = useCallback((id: number, newStatus: string, note?: string) => {
-    updateCampaignStatusByAdmin(id, newStatus, note);
-    setDonations(getAdminDonationsList());
-  }, []);
+  const handleUpdateDonation = useCallback(async (id: any, newStatus: string, note?: string) => {
+    // Jika id adalah UUID string (dari PostgreSQL)
+    if (typeof id === 'string') {
+      const decisionMap: Record<string, any> = {
+        disetujui: 'APPROVED',
+        revisi: 'REVISION_REQUESTED',
+        ditolak: 'REJECTED',
+      };
+      const decision = decisionMap[newStatus];
+      if (decision) {
+        try {
+          const res = await apiAdminReviewCampaign(id, { decision, note });
+          if (!res.success) {
+            showToast(res.message || 'Gagal menyimpan review.');
+            return { success: false, message: res.message };
+          }
+          showToast('Hasil verifikasi terkirim. Pengguna akan diberi tahu lewat NutriHelp.');
+          await refreshSharedData();
+          return { success: true };
+        } catch {
+          showToast('Terjadi gangguan jaringan saat review.');
+          return { success: false, message: 'Terjadi gangguan jaringan saat review.' };
+        }
+      }
+    } else {
+      updateCampaignStatusByAdmin(id, newStatus, note);
+      showToast('Hasil verifikasi terkirim. Pengguna akan diberi tahu lewat NutriHelp.');
+      await refreshSharedData();
+      return { success: true };
+    }
+    await refreshSharedData();
+    return { success: true };
+  }, [refreshSharedData, showToast]);
 
   const handleReplyMessage = useCallback((id: number, replyText: string, replyTime: string) => {
     setMessages((prev) =>
@@ -273,6 +491,20 @@ export default function NutrimateAIAdminApp() {
     }
   };
 
+  if (isVerifyingAuth) {
+    return (
+      <>
+        <AdminStyleSheet />
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f7f6' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <span className="adm-spinner" style={{ width: '32px', height: '32px', borderWidth: '3px' }} aria-hidden="true" />
+            <span style={{ fontSize: '14px', color: '#666', fontWeight: 500 }}>Memverifikasi sesi admin...</span>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   if (!isLoggedIn) {
     return (
       <>
@@ -339,8 +571,8 @@ export default function NutrimateAIAdminApp() {
                   <Icon name="u" />
                 </span>
                 <div>
-                  <b>{ADMIN_ACCOUNT.name}</b>
-                  <small>{ADMIN_ACCOUNT.email}</small>
+                  <b>{adminUser?.name || ADMIN_ACCOUNT.name}</b>
+                  <small>{adminUser?.email || ADMIN_ACCOUNT.email}</small>
                 </div>
               </div>
               <button
@@ -392,13 +624,39 @@ export default function NutrimateAIAdminApp() {
                   onUpdateDonation={handleUpdateDonation}
                   onShowToast={showToast}
                   onAddActivity={addActivity}
+                  error={donationsError}
+                  onRetry={refreshSharedData}
                 />
               )}
               {activeTab === 'pay' && (
                 <PaymentsView
                   payments={payments}
+                  paymentsError={paymentsError}
                   withdrawals={withdrawals}
+                  withdrawalsError={withdrawalsError}
                   wallets={wallets}
+                  onVerifyPayment={async (paymentId, decision) => {
+                    const apiDecision = decision === 'berhasil' ? 'CONFIRMED' : 'REJECTED';
+                    const res = await apiAdminVerifyDonation(paymentId, { decision: apiDecision });
+                    if (res.success) {
+                      await refreshSharedData();
+                    }
+                    return res;
+                  }}
+                  onCompleteWithdrawal={async (withdrawalId) => {
+                    const res = await apiAdminCompleteWithdrawal(withdrawalId);
+                    if (res.success) {
+                      await refreshSharedData();
+                    }
+                    return res;
+                  }}
+                  onRejectWithdrawal={async (withdrawalId, reason) => {
+                    const res = await apiAdminRejectWithdrawal(withdrawalId, { reason });
+                    if (res.success) {
+                      await refreshSharedData();
+                    }
+                    return res;
+                  }}
                   onUpdatePayments={(next) => {
                     saveSharedPayments(next);
                     setPayments(next);

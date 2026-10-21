@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import "@/app/dashboard/dashboard-assist.css";
 import { SvgIcon } from "./SvgIcon";
 import { PageIntro } from "./SharedComponents";
-import { SAMPLE_CAMPAIGNS, CATL, type Campaign } from "@/lib/dashboard/mockData";
+import { CATL, type Campaign } from "@/lib/dashboard/mockData";
 import { DONATION_STATUS, type DonationRecord, type MyCampaign } from "@/lib/dashboard/campaign";
 import { buildQrMatrix, buildQrisPayload, qrToSvgPath, QRIS_MERCHANT } from "@/lib/dashboard/qris";
 
@@ -110,7 +110,13 @@ const mmss = (s: number) => String(Math.floor(s / 60)).padStart(2, "0") + ":" + 
 interface DonateModalProps {
   campaign: Campaign;
   onClose: () => void;
-  onSubmit: (d: DonationRecord) => void;
+  onSubmit: (d: {
+    campaignId: string;
+    amount: number;
+    donorName?: string;
+    isAnonymous?: boolean;
+    message?: string;
+  }) => Promise<{ success: boolean; donationId?: string; message?: string }>;
 }
 
 function DonateModal({ campaign: c, onClose, onSubmit }: DonateModalProps) {
@@ -122,6 +128,7 @@ function DonateModal({ campaign: c, onClose, onSubmit }: DonateModalProps) {
   const [step, setStep] = React.useState<DonateStep>("form");
   const [timer, setTimer] = React.useState(QR_TIMEOUT_S);
   const [reference, setReference] = React.useState("");
+  const [errorMsg, setErrorMsg] = React.useState("");
   const verifyTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const finalAmt = customAmt ? Math.round(Number(customAmt)) : amount;
@@ -146,31 +153,48 @@ function DonateModal({ campaign: c, onClose, onSubmit }: DonateModalProps) {
   const raised = col(c);
   const p2 = pct(raised, c.target);
 
-  function goToQr() {
-    setReference(newReference());
-    setTimer(QR_TIMEOUT_S);
-    setStep("qr");
+  async function goToQr() {
+    setErrorMsg("");
+    setStep("loading");
+    const name = nameInput.trim();
+    try {
+      const res = await onSubmit({
+        campaignId: c.id,
+        amount: finalAmt,
+        donorName: anon || !name ? "Anonim" : name,
+        isAnonymous: anon || !name,
+        message: msgInput.trim(),
+      });
+      if (res.success && res.donationId) {
+        setReference(res.donationId);
+        setTimer(QR_TIMEOUT_S);
+        setStep("qr");
+      } else {
+        setStep("form");
+        setErrorMsg(res.message || "Gagal membuat kode pembayaran QRIS.");
+      }
+    } catch {
+      setStep("form");
+      setErrorMsg("Terjadi gangguan jaringan saat membuat transaksi donasi.");
+    }
   }
 
-  function confirmPaid() {
+  async function confirmPaid() {
     if (step !== "qr" || timer <= 0) return;
-    const name = nameInput.trim();
-    onSubmit({
-      id: reference,
-      campaignId: c.id,
-      campaignTitle: c.judul,
-      recipient: c.nama,
-      cat: c.cat,
-      amount: finalAmt,
-      donorName: anon || !name ? "Anonim" : name,
-      anonymous: anon || !name,
-      message: msgInput.trim(),
-      method: "QRIS",
-      ts: Date.now(),
-      status: "verifikasi",
-    });
     setStep("loading");
-    verifyTimer.current = setTimeout(() => setStep("done"), VERIFY_DELAY_MS);
+    try {
+      const { apiMarkDonationPaid } = await import("@/lib/nutriassist/client");
+      const res = await apiMarkDonationPaid(reference);
+      if (res.success) {
+        verifyTimer.current = setTimeout(() => setStep("done"), 1200);
+      } else {
+        setStep("qr");
+        setErrorMsg(res.message || "Gagal mengonfirmasi pembayaran.");
+      }
+    } catch {
+      setStep("qr");
+      setErrorMsg("Terjadi gangguan jaringan saat konfirmasi pembayaran.");
+    }
   }
 
   function donateAgain() {
@@ -225,6 +249,7 @@ function DonateModal({ campaign: c, onClose, onSubmit }: DonateModalProps) {
                   <div className="db-inp"><input id="dms" value={msgInput} placeholder="Semoga sehat selalu..." onChange={e => setMsgInput(e.target.value)} /></div>
                 </div>
                 <div className="db-nh-sumrow"><span>Total donasi</span><b>{rpx(finalAmt || 0)}</b></div>
+                {errorMsg && <div style={{ color: "#d9383a", fontSize: 13, marginTop: 8, textAlign: "center" }}>{errorMsg}</div>}
                 <button type="button" className="db-btn" style={{ width: "100%", marginTop: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
                   disabled={!(finalAmt >= 1000)}
                   onClick={goToQr}>
@@ -253,6 +278,7 @@ function DonateModal({ campaign: c, onClose, onSubmit }: DonateModalProps) {
                   disabled={timer <= 0} onClick={confirmPaid}>
                   Saya sudah membayar
                 </button>
+                {errorMsg && <div style={{ color: "#d9383a", fontSize: 13, marginBottom: 10, textAlign: "center" }}>{errorMsg}</div>}
                 <button type="button" className="db-btn o" style={{ width: "100%" }} onClick={() => setStep("form")}>Kembali</button>
               </div>
             )}
@@ -464,18 +490,35 @@ interface NutriAssistProps {
   myCampaign?: MyCampaign | null;
   /** Riwayat pemberian donasi milik pengguna */
   donations: DonationRecord[];
-  /** Dipanggil saat pengguna menyatakan sudah membayar (status awal: Dalam verifikasi) */
-  onAddDonation: (d: DonationRecord) => void;
+  /** Daftar kampanye aktif dari database */
+  activeCampaigns?: Campaign[];
+  /** Status error fetching active campaigns */
+  activeCampaignsError?: string | null;
+  /** Dipanggil saat pengguna membuat dan membayar donasi */
+  onAddDonation: (d: {
+    campaignId: string;
+    amount: number;
+    donorName?: string;
+    isAnonymous?: boolean;
+    message?: string;
+  }) => Promise<{ success: boolean; donationId?: string; message?: string }>;
 }
 
-export default function NutriAssist({ myCampaign = null, donations, onAddDonation }: NutriAssistProps) {
+export default function NutriAssist({
+  myCampaign = null,
+  donations,
+  activeCampaigns,
+  activeCampaignsError,
+  onAddDonation,
+}: NutriAssistProps) {
   const [section, setSection] = React.useState<Section>("open");
   const [filter, setFilter] = React.useState("all");
   const [viewId, setViewId] = React.useState<string | null>(null);
   const [donatingId, setDonatingId] = React.useState<string | null>(null);
 
-  const others: Campaign[] = SAMPLE_CAMPAIGNS;
   const own: MyCampaign | null = myCampaign && myCampaign.status === "berjalan" ? myCampaign : null;
+  // Exclude user's own campaign from "others" — it's already shown as `own` card to avoid duplicates
+  const others: Campaign[] = (activeCampaigns ?? []).filter(c => !own || c.id !== own.id);
   const all: CardCampaign[] = own ? [own, ...others] : others;
   const filtered = filter === "all" ? all : all.filter(c => c.cat === filter);
   const view = viewId ? all.find(c => c.id === viewId) ?? null : null;
@@ -524,9 +567,21 @@ export default function NutriAssist({ myCampaign = null, donations, onAddDonatio
             </div>
             <span style={{ color: "var(--s)", fontSize: 13 }}>{filtered.length} open donasi aktif</span>
           </div>
-          <div className="db-nh-grid">
-            {filtered.map(c => <CampaignCard key={c.id} c={c} own={isOwn(c)} onDetail={c2 => setViewId(c2.id)} />)}
-          </div>
+
+          {activeCampaignsError ? (
+            <div className="db-card" style={{ padding: "32px 16px", textAlign: "center", color: "#d9383a" }}>
+              <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 16 }}>Gagal Memuat Kampanye Donasi</p>
+              <p style={{ fontSize: 14, color: "var(--s)" }}>{activeCampaignsError}</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="db-card" style={{ padding: "32px 16px", textAlign: "center" }}>
+              <p style={{ color: "var(--s)", fontSize: 14 }}>Belum ada open donasi yang aktif saat ini.</p>
+            </div>
+          ) : (
+            <div className="db-nh-grid">
+              {filtered.map(c => <CampaignCard key={c.id} c={c} own={isOwn(c)} onDetail={c2 => setViewId(c2.id)} />)}
+            </div>
+          )}
         </>
       ) : (
         <DonationHistory donations={donations} onBrowse={() => setSection("open")} />

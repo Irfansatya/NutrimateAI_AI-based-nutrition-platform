@@ -15,8 +15,13 @@ import { ModalWrapper } from '@/component/admin/ui/ModalWrapper';
 
 interface PaymentsViewProps {
   payments: QrisPaymentRecord[];
+  paymentsError?: string | null;
   withdrawals: WithdrawalRecord[];
+  withdrawalsError?: string | null;
   wallets: Record<string, number>;
+  onVerifyPayment?: (paymentId: string, decision: 'berhasil' | 'gagal') => Promise<any>;
+  onCompleteWithdrawal?: (withdrawalId: string) => Promise<any>;
+  onRejectWithdrawal?: (withdrawalId: string, reason: string) => Promise<any>;
   onUpdatePayments: (next: QrisPaymentRecord[]) => void;
   onUpdateWithdrawals: (next: WithdrawalRecord[]) => void;
   onUpdateWallets: (next: Record<string, number>) => void;
@@ -26,8 +31,13 @@ interface PaymentsViewProps {
 
 export const PaymentsView: React.FC<PaymentsViewProps> = ({
   payments,
+  paymentsError,
   withdrawals,
+  withdrawalsError,
   wallets,
+  onVerifyPayment,
+  onCompleteWithdrawal,
+  onRejectWithdrawal,
   onUpdatePayments,
   onUpdateWithdrawals,
   onUpdateWallets,
@@ -121,12 +131,31 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   };
 
   // Handle Eksekusi Verifikasi QRIS
-  const handleConfirmQrisVerification = () => {
+  const handleConfirmQrisVerification = async () => {
     if (!verifyModal.payment || verifyModal.isSubmitting) return;
 
     setVerifyModal((prev) => ({ ...prev, isSubmitting: true }));
     const payment = verifyModal.payment;
     const decision = verifyModal.decision;
+
+    // Jika handler backend onVerifyPayment disediakan, panggil API server-side
+    if (onVerifyPayment) {
+      try {
+        const res = await onVerifyPayment(payment.id, decision);
+        setVerifyModal((prev) => ({ ...prev, isSubmitting: false, open: false }));
+        if (res && res.success === false) {
+          onShowToast(res.message || 'Gagal memverifikasi pembayaran.');
+          return;
+        }
+        const decisionText = decision === 'berhasil' ? 'diverifikasi berhasil' : 'ditandai gagal/tidak diterima';
+        onAddActivity(`Pembayaran ${payment.id} sebesar ${formatRupiah(payment.amount)} ${decisionText}`, 0);
+        return;
+      } catch {
+        setVerifyModal((prev) => ({ ...prev, isSubmitting: false, open: false }));
+        onShowToast('Terjadi kesalahan jaringan saat verifikasi pembayaran.');
+        return;
+      }
+    }
 
     setTimeout(() => {
       // 1. Update status pembayaran (idempotent: cek status sebelum kredit)
@@ -172,11 +201,37 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   };
 
   // Handle Eksekusi Selesai Pencairan Dana
-  const handleConfirmWithdrawal = () => {
+  const handleConfirmWithdrawal = async () => {
     if (!wdModal.withdrawal || wdModal.isSubmitting) return;
 
     setWdModal((prev) => ({ ...prev, isSubmitting: true }));
     const wd = wdModal.withdrawal;
+
+    if (onCompleteWithdrawal) {
+      try {
+        const res = await onCompleteWithdrawal(wd.id);
+        setWdModal({
+          open: false,
+          withdrawal: null,
+          isSubmitting: false,
+        });
+        if (res && res.success === false) {
+          onShowToast(res.message || 'Gagal menyelesaikan pencairan dana.');
+          return;
+        }
+        onAddActivity(`Pencairan dana ${wd.id} (${formatRupiah(wd.amount)}) ke ${wd.userName} telah selesai ditransfer`, 0);
+        onShowToast(`Pencairan dana untuk ${wd.userName} berhasil diselesaikan.`);
+        return;
+      } catch {
+        setWdModal({
+          open: false,
+          withdrawal: null,
+          isSubmitting: false,
+        });
+        onShowToast('Terjadi kesalahan jaringan saat menyelesaikan pencairan dana.');
+        return;
+      }
+    }
 
     setTimeout(() => {
       // 1. Update status pengajuan pencairan (idempotent)
@@ -295,7 +350,12 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           </div>
 
           {/* List Kartu Verifikasi QRIS */}
-          {filteredPayments.length === 0 ? (
+          {paymentsError ? (
+            <div className="empty" style={{ color: '#d9383a', padding: '32px 16px', textAlign: 'center' }}>
+              <p style={{ fontWeight: 600, marginBottom: 8 }}>Gagal Memuat Transaksi Donasi</p>
+              <p style={{ fontSize: 14, color: 'var(--s)' }}>{paymentsError}</p>
+            </div>
+          ) : filteredPayments.length === 0 ? (
             <div className="empty">
               <p>Tidak ada data transaksi pembayaran QRIS pada filter ini.</p>
             </div>
@@ -444,7 +504,12 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           </div>
 
           {/* List Kartu Pencairan */}
-          {filteredWithdrawals.length === 0 ? (
+          {withdrawalsError ? (
+            <div className="empty" style={{ color: '#d9383a', padding: '32px 16px', textAlign: 'center' }}>
+              <p style={{ fontWeight: 600, marginBottom: 8 }}>Gagal Memuat Permohonan Pencairan</p>
+              <p style={{ fontSize: 14, color: 'var(--s)' }}>{withdrawalsError}</p>
+            </div>
+          ) : filteredWithdrawals.length === 0 ? (
             <div className="empty">
               <p>Tidak ada permohonan pencairan dana pada filter ini.</p>
             </div>

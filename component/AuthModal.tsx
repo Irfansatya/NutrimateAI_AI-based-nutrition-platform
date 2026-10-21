@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { registerUser, authenticateUser, saveUserSession, hasUserSession } from "@/lib/user/session";
+import { apiRegister, apiLogin, apiGetMe } from "@/lib/auth/client";
 
 /* Ikon mata untuk tombol lihat/sembunyikan kata sandi */
 function EyeIcon() {
@@ -101,12 +101,14 @@ export default function AuthModal({
   // (Daftar -> signup, Masuk -> signin), bukan mode terakhir yang dibuka.
   useEffect(() => {
     if (isOpen) {
-      // Jika user sudah login saat membuka popup, langsung arahkan ke dashboard
-      if (hasUserSession()) {
-        onClose();
-        router.replace("/dashboard");
-        return;
-      }
+      // Periksa apakah user sudah memiliki sesi valid via API
+      apiGetMe().then((res) => {
+        if (res.success && res.data?.user) {
+          onClose();
+          router.replace("/dashboard");
+        }
+      }).catch(() => {});
+
       setMode(initialMode);
       setShowPassword(false);
       setShowConfirmPassword(false);
@@ -163,7 +165,7 @@ export default function AuthModal({
   const isPasswordValid =
     passwordChecks.length && passwordChecks.uppercase && passwordChecks.number;
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (name.trim().length < 2) {
@@ -182,6 +184,10 @@ export default function AuthModal({
       showToastMsg("Kata sandi belum memenuhi semua kriteria keamanan.", true);
       return;
     }
+    if (password.length > 128) {
+      showToastMsg("Kata sandi maksimal 128 karakter.", true);
+      return;
+    }
     if (confirmPassword !== password) {
       showToastMsg("Konfirmasi kata sandi tidak cocok.", true);
       return;
@@ -189,31 +195,34 @@ export default function AuthModal({
 
     setIsLoading(true);
 
-    const regResult = registerUser({
-      name,
-      email,
-      phone: whatsapp,
-      password,
-    });
+    try {
+      const regResult = await apiRegister({
+        name,
+        email,
+        phone: whatsapp,
+        password,
+      });
 
-    if (!regResult.success) {
+      if (!regResult.success) {
+        setIsLoading(false);
+        showToastMsg(regResult.message || "Gagal melakukan pendaftaran akun.", true);
+        return;
+      }
+
+      showToastMsg("Pendaftaran berhasil! Mengalihkan ke Dashboard...");
+
+      setTimeout(() => {
+        setIsLoading(false);
+        onClose();
+        router.push("/dashboard");
+      }, 900);
+    } catch {
       setIsLoading(false);
-      showToastMsg(regResult.error || "Gagal melakukan pendaftaran akun.", true);
-      return;
+      showToastMsg("Terjadi kesalahan jaringan saat pendaftaran.", true);
     }
-
-    showToastMsg("Memproses pendaftaran akun...");
-
-    setTimeout(() => {
-      setIsLoading(false);
-      showToastMsg("Pendaftaran berhasil! Silakan masuk dengan akun Anda.");
-      setSigninEmail(email);
-      setSigninPassword("");
-      setMode("signin");
-    }, 1200);
   };
 
-  const handleSigninSubmit = (e: React.FormEvent) => {
+  const handleSigninSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!isEmailValid(signinEmail)) {
@@ -227,24 +236,29 @@ export default function AuthModal({
 
     setIsLoading(true);
 
-    const authResult = authenticateUser(signinEmail, signinPassword);
+    try {
+      const authResult = await apiLogin({
+        email: signinEmail,
+        password: signinPassword,
+      });
 
-    if (!authResult.success || !authResult.user) {
-      setIsLoading(false);
-      showToastMsg(authResult.error || "Email atau kata sandi tidak cocok.", true);
-      return;
-    }
+      if (!authResult.success || !authResult.data?.user) {
+        setIsLoading(false);
+        showToastMsg(authResult.message || "Email atau kata sandi tidak cocok.", true);
+        return;
+      }
 
-    saveUserSession(authResult.user.id);
-
-    setTimeout(() => {
-      setIsLoading(false);
       showToastMsg("Berhasil masuk! Selamat datang di NutriMate AI.");
+
       setTimeout(() => {
+        setIsLoading(false);
         onClose();
         router.push("/dashboard");
       }, 700);
-    }, 800);
+    } catch {
+      setIsLoading(false);
+      showToastMsg("Terjadi kesalahan jaringan saat masuk.", true);
+    }
   };
 
   return (

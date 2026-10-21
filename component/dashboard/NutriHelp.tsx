@@ -57,19 +57,28 @@ function initialForm(c: MyCampaign | null): HelpForm {
   return c && (c.status === "revisi" || c.status === "ditolak") ? cloneForm(c.form) : emptyForm();
 }
 
+import type { WalletSummaryData } from "@/lib/nutriwallet/client";
+
 // ===== MAIN COMPONENT =====
 type Tab = "form" | "mine" | "wallet";
 
 interface NutriHelpProps {
   onToast: (msg: string) => void;
   myCampaign: MyCampaign | null;
-  onSubmitCampaign: (c: MyCampaign) => void;
+  onSubmitCampaign: (c: MyCampaign) => Promise<{ success: boolean; message?: string }> | void;
   onPublishCampaign: () => void;
   onCancelCampaign: () => void;
   onFinishCampaign: () => void;
   onResetCampaign: () => void;
   withdrawals: Withdrawal[];
-  onWithdraw: (w: Withdrawal) => void;
+  walletSummary?: WalletSummaryData | null;
+  walletError?: string | null;
+  onWithdraw: (w: {
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+    amount: number;
+  }) => Promise<{ success: boolean; message?: string }>;
 }
 
 export default function NutriHelp({
@@ -81,6 +90,8 @@ export default function NutriHelp({
   onFinishCampaign,
   onResetCampaign,
   withdrawals,
+  walletSummary,
+  walletError,
   onWithdraw,
 }: NutriHelpProps) {
   const [tab, setTab] = React.useState<Tab>(myCampaign ? "mine" : "form");
@@ -188,7 +199,7 @@ export default function NutriHelp({
     const thumbFile = snapshot.files.thumb[0];
     const prevId = myCampaign?.id;
     setSubmitting(true);
-    timer.current = setTimeout(() => {
+    timer.current = setTimeout(async () => {
       const camp: MyCampaign = {
         id: prevId ?? "mine_" + Date.now(),
         owner: "me",
@@ -208,14 +219,23 @@ export default function NutriHelp({
         thumbnail: thumbFile ? URL.createObjectURL(thumbFile) : undefined,
         submittedAt: Date.now(),
       };
-      onSubmitCampaign(camp);
-      setSubmitting(false);
-      setForm(emptyForm());
-      setStep(0);
-      setErrors([]);
-      setTab("mine");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      onToast("Pengajuan open donasi berhasil dikirim");
+      try {
+        const res = await onSubmitCampaign(camp);
+        setSubmitting(false);
+        if (res && typeof res === "object" && res.success === false) {
+          onToast(res.message || "Gagal mengirim pengajuan open donasi");
+          return;
+        }
+        setForm(emptyForm());
+        setStep(0);
+        setErrors([]);
+        setTab("mine");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        onToast("Pengajuan open donasi berhasil dikirim");
+      } catch {
+        setSubmitting(false);
+        onToast("Terjadi gangguan saat mengirim pengajuan open donasi.");
+      }
     }, SUBMIT_DELAY_MS);
   }
 
@@ -262,7 +282,16 @@ export default function NutriHelp({
   let content: React.ReactNode;
 
   if (tab === "wallet") {
-    content = <NutriWallet myCampaign={myCampaign} withdrawals={withdrawals} onWithdraw={onWithdraw} onToast={onToast} />;
+    content = (
+      <NutriWallet
+        myCampaign={myCampaign}
+        withdrawals={withdrawals}
+        walletSummary={walletSummary}
+        walletError={walletError}
+        onWithdraw={onWithdraw}
+        onToast={onToast}
+      />
+    );
   } else if (tab === "mine") {
     content = (
       <MyDonation
@@ -329,7 +358,19 @@ export default function NutriHelp({
                   <div className="db-chips">
                     {([["self", "Diri sendiri"], ["wali", "Wali/pendamping"], ["lain", "Lainnya"]] as [string, string][]).map(([v, l]) => (
                       <label key={v} className="db-chip">
-                        <input type="radio" name="role" value={v} checked={form.role === v} onChange={() => setF("role", v)} />
+                        <input
+                          type="radio"
+                          name="role"
+                          value={v}
+                          checked={form.role === v}
+                          onChange={() => {
+                            setForm(f => ({
+                              ...f,
+                              role: v,
+                              hub: v === "self" ? "Diri sendiri" : v === "wali" ? "Wali/pendamping" : (f.role === "lain" ? f.hub : ""),
+                            }));
+                          }}
+                        />
                         <span>{l}</span>
                       </label>
                     ))}

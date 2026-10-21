@@ -122,7 +122,7 @@ export interface Withdrawal {
   /** Nomor rekening yang sudah disamarkan, mis. "•••• 7890" */
   acctMasked: string;
   name: string;
-  status: "diproses";
+  status: "diproses" | "selesai" | "ditolak";
 }
 
 /**

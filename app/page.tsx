@@ -9,8 +9,7 @@ import FeatureCarousel from "@/component/FeatureCarousel";
 import TestimonialCarousel from "@/component/TestimonialCarousel";
 import GuideModal from "@/component/GuideModal";
 import AuthModal from "@/component/AuthModal";
-import { hasUserSession } from "@/lib/user/session";
-import { hasAdminSession } from "@/lib/admin/session";
+import { apiGetMe } from "@/lib/auth/client";
 
 // Typewriter hook supporting trigger, delay, and completion
 function useScrollTypewriter(
@@ -56,25 +55,41 @@ export default function LandingPage() {
 
   // Redirection guard: authenticated users cannot return to landing page
   useEffect(() => {
-    if (hasAdminSession()) {
-      router.replace("/admin");
-      return;
-    }
-    if (hasUserSession()) {
-      router.replace("/dashboard");
-      return;
-    }
-    setAuthChecked(true);
+    let isMounted = true;
+
+    apiGetMe()
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.success && res.data?.user) {
+          if (res.data.user.role === "ADMIN") {
+            router.replace("/admin");
+          } else {
+            router.replace("/dashboard");
+          }
+        } else {
+          setAuthChecked(true);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setAuthChecked(true);
+      });
 
     const checkPopstate = () => {
-      if (hasAdminSession()) {
-        router.replace("/admin");
-      } else if (hasUserSession()) {
-        router.replace("/dashboard");
-      }
+      apiGetMe().then((res) => {
+        if (res.success && res.data?.user) {
+          if (res.data.user.role === "ADMIN") {
+            router.replace("/admin");
+          } else {
+            router.replace("/dashboard");
+          }
+        }
+      }).catch(() => {});
     };
     window.addEventListener("popstate", checkPopstate);
-    return () => window.removeEventListener("popstate", checkPopstate);
+    return () => {
+      isMounted = false;
+      window.removeEventListener("popstate", checkPopstate);
+    };
   }, [router]);
 
   // Trigger states

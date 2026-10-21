@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { ADMIN_ACCOUNT } from '@/lib/admin/data/admin';
 import { Icon } from '@/component/admin/ui/Icon';
+import { apiLogin, apiGetMe, apiLogout } from '@/lib/auth/client';
+
 export const LoginView = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -10,7 +11,7 @@ export const LoginView = ({ onLoginSuccess }: { onLoginSuccess: () => void }) =>
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
 
@@ -24,18 +25,38 @@ export const LoginView = ({ onLoginSuccess }: { onLoginSuccess: () => void }) =>
       setError('Format email tidak valid.');
       return;
     }
-    if (!ADMIN_ACCOUNT.emails.includes(cleanEmail) || password !== ADMIN_ACCOUNT.pw) {
-      setError('Email atau kata sandi salah.');
-      return;
-    }
 
     setError('');
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const loginRes = await apiLogin({
+        email: cleanEmail,
+        password,
+      });
+
+      if (!loginRes.success) {
+        setIsLoading(false);
+        setError(loginRes.message || 'Email atau kata sandi salah.');
+        return;
+      }
+
+      // Verify database role is exactly ADMIN
+      const meRes = await apiGetMe();
+      if (!meRes.success || meRes.data?.user?.role !== 'ADMIN') {
+        // Revoke session if user is not ADMIN
+        await apiLogout();
+        setIsLoading(false);
+        setError('Akses ditolak. Akun Anda bukan administrator.');
+        return;
+      }
+
       setIsLoading(false);
       onLoginSuccess();
-    }, 3000);
+    } catch {
+      setIsLoading(false);
+      setError('Terjadi gangguan jaringan saat memverifikasi akun admin.');
+    }
   };
 
   return (

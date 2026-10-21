@@ -3,7 +3,7 @@ import React from "react";
 import { SvgIcon } from "./SvgIcon";
 import { BankSelect, BANKS } from "./BankSelect";
 import type { MyCampaign, Withdrawal } from "@/lib/dashboard/campaign";
-import { getSharedWallets } from "@/lib/shared/store";
+import type { WalletSummaryData } from "@/lib/nutriwallet/client";
 
 const rpx = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID");
 
@@ -22,32 +22,49 @@ interface LedgerEntry {
 interface NutriWalletProps {
   myCampaign: MyCampaign | null;
   withdrawals: Withdrawal[];
-  onWithdraw: (w: Withdrawal) => void;
+  walletSummary?: WalletSummaryData | null;
+  walletError?: string | null;
+  onWithdraw: (w: {
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+    amount: number;
+  }) => Promise<{ success: boolean; message?: string }>;
   onToast: (msg: string) => void;
 }
 
-export default function NutriWallet({ myCampaign, withdrawals, onWithdraw, onToast }: NutriWalletProps) {
+export default function NutriWallet({
+  myCampaign,
+  withdrawals,
+  walletSummary,
+  walletError,
+  onWithdraw,
+  onToast,
+}: NutriWalletProps) {
   const [showWdModal, setShowWdModal] = React.useState(false);
   const [bank, setBank] = React.useState("");
   const [acct, setAcct] = React.useState("");
   const [name, setName] = React.useState("");
   const [amt, setAmt] = React.useState("");
   const [errs, setErrs] = React.useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  // Dana masuk berasal dari donasi pada open donasi milik pengguna
+  // Donasi masuk dari open donasi pengguna
   const donors = React.useMemo(() => myCampaign?.donors ?? [], [myCampaign]);
-  const campaignDonationsTotal = donors.reduce((a, d) => a + d.amt, 0);
 
-  // Baca saldo tersimpan dari shared localStorage berdasarkan penerima/user
-  const recipientName = myCampaign?.form?.penerima || myCampaign?.nama || "Irfan Satya";
-  const sharedWallets = getSharedWallets();
-  const storedBalance = sharedWallets[recipientName] ?? sharedWallets["Ibu Rina"] ?? 0;
-
-  const total = Math.max(campaignDonationsTotal, storedBalance);
-  const running = myCampaign?.status === "berjalan";
-  const held = running ? total : 0;
-  const wd = withdrawals.reduce((a, w) => a + w.amt, 0);
-  const avail = Math.max(0, total - held - wd);
+  // Gunakan data dari backend jika walletSummary tersedia
+  const total = walletSummary ? walletSummary.totalIn : donors.reduce((a, d) => a + d.amt, 0);
+  const held = walletSummary
+    ? walletSummary.heldBalance
+    : myCampaign?.status === "berjalan"
+    ? total
+    : 0;
+  const wd = walletSummary
+    ? walletSummary.totalWithdrawn
+    : withdrawals.filter((w) => w.status === "selesai").reduce((a, w) => a + w.amt, 0);
+  const avail = walletSummary
+    ? walletSummary.availableBalance
+    : Math.max(0, total - held - withdrawals.reduce((a, w) => a + w.amt, 0));
   const canWithdraw = avail >= MIN_WITHDRAW;
 
   const ledger = React.useMemo<LedgerEntry[]>(() => {
@@ -74,13 +91,13 @@ export default function NutriWallet({ myCampaign, withdrawals, onWithdraw, onToa
 
   React.useEffect(() => {
     if (!showWdModal) return;
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") setShowWdModal(false); };
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape" && !isSubmitting) setShowWdModal(false); };
     document.addEventListener("keydown", h);
     return () => document.removeEventListener("keydown", h);
-  }, [showWdModal]);
+  }, [showWdModal, isSubmitting]);
 
   function openModal() {
-    setBank(""); setAcct(""); setName(""); setAmt(""); setErrs({});
+    setBank(""); setAcct(""); setName(""); setAmt(""); setErrs({}); setIsSubmitting(false);
     setShowWdModal(true);
   }
 
@@ -95,22 +112,33 @@ export default function NutriWallet({ myCampaign, withdrawals, onWithdraw, onToa
     return err;
   }
 
-  function submitWd() {
+  async function submitWd() {
+    if (isSubmitting) return;
     const v = validateWd();
     setErrs(v);
     if (Object.keys(v).length) return;
     const b = BANKS.find((x) => x.id === bank);
-    onWithdraw({
-      id: "wd_" + Date.now(),
-      amt: Number(amt),
-      ts: Date.now(),
-      bank: b ? b.name : bank,
-      acctMasked: "•••• " + acct.slice(-4),
-      name: name.trim(),
-      status: "diproses",
-    });
-    setShowWdModal(false);
-    onToast(PROCESS_NOTICE);
+    const bankName = b ? b.name : bank;
+
+    setIsSubmitting(true);
+    try {
+      const res = await onWithdraw({
+        bankName,
+        accountNumber: acct,
+        accountHolder: name.trim(),
+        amount: Number(amt),
+      });
+      setIsSubmitting(false);
+      if (res.success) {
+        setShowWdModal(false);
+        onToast(PROCESS_NOTICE);
+      } else {
+        setErrs({ form: res.message || "Gagal mengajukan penarikan dana." });
+      }
+    } catch {
+      setIsSubmitting(false);
+      setErrs({ form: "Terjadi kesalahan jaringan saat mengajukan penarikan." });
+    }
   }
 
   return (
@@ -228,9 +256,12 @@ export default function NutriWallet({ myCampaign, withdrawals, onWithdraw, onToa
               </div>
               {errs.amt && <div className="db-em">{errs.amt}</div>}
             </div>
+            {errs.form && <div style={{ color: "#d9383a", fontSize: 13, marginBottom: 10, textAlign: "center" }}>{errs.form}</div>}
             <div className="db-foot">
-              <button type="button" className="db-btn o" onClick={() => setShowWdModal(false)}>Batal</button>
-              <button type="button" className="db-btn" onClick={submitWd}>Kirim permohonan</button>
+              <button type="button" className="db-btn o" disabled={isSubmitting} onClick={() => setShowWdModal(false)}>Batal</button>
+              <button type="button" className="db-btn" disabled={isSubmitting} onClick={submitWd}>
+                {isSubmitting ? "Memproses..." : "Kirim permohonan"}
+              </button>
             </div>
           </div>
         </div>

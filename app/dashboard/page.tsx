@@ -16,8 +16,25 @@ import NutriCheck, { type GrowthRecord } from "@/component/dashboard/NutriCheck"
 import NutriPlan from "@/component/dashboard/NutriPlan";
 import NutriHelp from "@/component/dashboard/NutriHelp";
 import NutriAssist from "@/component/dashboard/NutriAssist";
-import { getCurrentUser, clearUserSession } from "@/lib/user/session";
-import type { DonationRecord, MyCampaign, Withdrawal } from "@/lib/dashboard/campaign";
+import { apiGetMe, apiLogout } from "@/lib/auth/client";
+import { apiGetAssessments, apiGetLatestAssessment, type NutritionContextType } from "@/lib/nutricheck/client";
+import {
+  apiGetUserCampaigns,
+  apiCreateCampaign,
+  apiUpdateCampaignAction,
+} from "@/lib/nutrihelp/client";
+import {
+  apiGetActiveCampaigns,
+  apiGetMyDonations,
+  apiCreateDonation,
+} from "@/lib/nutriassist/client";
+import {
+  apiGetWalletSummary,
+  apiGetWalletWithdrawals,
+  apiCreateWithdrawal,
+  type WalletSummaryData,
+} from "@/lib/nutriwallet/client";
+import type { DonationRecord, MyCampaign, Withdrawal, HelpForm, NeedItem } from "@/lib/dashboard/campaign";
 import {
   getUserActiveCampaign,
   upsertUserCampaign,
@@ -34,6 +51,7 @@ import {
   NAV_ITEMS,
   type Cat,
   type DayPlan,
+  type Campaign,
 } from "@/lib/dashboard/mockData";
 
 // Dua teks subheadline yang tampil bergantian (Typewriter Effect)
@@ -45,31 +63,61 @@ const HERO_SUBTEXTS = [
 export default function DashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>("check");
-  const [user, setUser] = useState(MOCK_USER);
+  const [user, setUser] = useState<{
+    id?: string;
+    name: string;
+    email: string;
+    phone: string;
+    role: string;
+    photo: string | null;
+  }>(MOCK_USER);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
-    const active = getCurrentUser();
-    if (!active) {
-      router.replace("/");
-      return;
-    }
-    setUser({
-      name: active.name,
-      email: active.email,
-      phone: active.phone,
-      role: active.role,
-      photo: active.photo || null,
-    });
-    setIsAuthorized(true);
+    let isMounted = true;
+    apiGetMe()
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.success && res.data?.user) {
+          const authUser = res.data.user;
+          setUser({
+            id: authUser.id,
+            name: authUser.name,
+            email: authUser.email,
+            phone: authUser.phone || "",
+            role: authUser.role === "USER" ? "Pengguna NutrimateAI" : authUser.role,
+            photo: authUser.photo || null,
+          });
+          setIsAuthorized(true);
+        } else {
+          router.replace("/");
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          router.replace("/");
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
-  const handleLogout = () => {
-    clearUserSession();
-    router.replace("/");
+  const handleLogout = async () => {
+    try {
+      const res = await apiLogout();
+      if (res.success) {
+        router.replace("/");
+      } else {
+        setToastMsg(res.message || "Gagal keluar. Silakan coba lagi.");
+      }
+    } catch {
+      setToastMsg("Terjadi gangguan jaringan saat keluar.");
+    }
   };
 
   // Typewriter subheadline pada hero: ketik, diam 5 detik, hilang, lalu ulangi.
@@ -143,6 +191,48 @@ export default function DashboardPage() {
     anak: [],
   });
 
+  // Load NutriCheck assessment history & growth data from backend
+  useEffect(() => {
+    if (!isAuthorized) return;
+    let isMounted = true;
+
+    apiGetAssessments().then((res) => {
+      if (!isMounted || !res.success || !res.data) return;
+      if (res.data.growth) {
+        setGrowth({
+          hamil: res.data.growth.hamil || [],
+          menyusui: res.data.growth.menyusui || [],
+          anak: res.data.growth.anak || [],
+        });
+      }
+    }).catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthorized]);
+
+  // Load latest assessment to prefill form when category changes
+  useEffect(() => {
+    if (!isAuthorized) return;
+    let isMounted = true;
+
+    const catEnum: NutritionContextType = cat === "hamil" ? "PREGNANCY" : cat === "menyusui" ? "BREASTFEEDING" : "CHILD";
+    apiGetLatestAssessment(catEnum).then((res) => {
+      if (!isMounted || !res.success || !res.data) return;
+      if (res.data.formData) {
+        setCheckData((prev) => ({
+          ...prev,
+          [cat]: { ...prev[cat], ...res.data.formData },
+        }));
+      }
+    }).catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthorized, cat]);
+
   // NutriPlan state
   const [plan, setPlan] = useState<DayPlan[] | null>(null);
   const [planCat, setPlanCat] = useState<Cat>("hamil");
@@ -150,47 +240,212 @@ export default function DashboardPage() {
   // NutriHelp / Wallet state
   const [myCampaign, setMyCampaign] = useState<MyCampaign | null>(null);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [walletSummary, setWalletSummary] = useState<WalletSummaryData | null>(null);
+  const [walletError, setWalletError] = useState<string | null>(null);
 
-  // NutriAssist: riwayat donasi milik pengguna (status awal: Dalam verifikasi)
+  // NutriAssist: riwayat donasi milik pengguna & active campaigns dari database
   const [donations, setDonations] = useState<DonationRecord[]>([]);
+  const [activeCampaigns, setActiveCampaigns] = useState<Campaign[]>([]);
+  const [activeCampaignsError, setActiveCampaignsError] = useState<string | null>(null);
 
-  // Sinkronisasi data dari shared localStorage
-  const refreshUserSharedData = useCallback(() => {
-    const active = getCurrentUser();
-    const activeCamp = getUserActiveCampaign(active?.id);
-    setMyCampaign(activeCamp);
+  // Helper konversi HelpCampaign DB ke MyCampaign UI
+  const mapDbCampaignToMyCampaign = useCallback((camp: any): MyCampaign => {
+    const stMap: Record<string, any> = {
+      REVIEW: "review",
+      REVISION: "revisi",
+      REJECTED: "ditolak",
+      APPROVED: "disetujui",
+      ACTIVE: "berjalan",
+      COMPLETED: "selesai",
+      CANCELED: "dibatalkan",
+    };
 
-    // Ambil withdrawals dari shared
-    const sharedWd = getSharedWithdrawals();
-    const userWds: Withdrawal[] = sharedWd.map(w => ({
-      id: w.id,
-      amt: w.amount,
-      ts: w.createdAt,
-      bank: w.bank,
-      acctMasked: w.acctMasked,
-      name: w.name,
-      status: w.status === 'selesai' ? ('selesai' as any) : 'diproses',
+    const docObj = (camp.documents || {}) as any;
+    const formSnap = docObj.formSnapshot || {};
+    const cat = camp.category === "PREGNANCY" ? "hamil" : camp.category === "BREASTFEEDING" ? "menyusui" : "anak";
+
+    const items: NeedItem[] = (camp.items || []).map((it: any) => ({
+      n: it.name,
+      q: it.quantity,
+      c: Number(it.estimatedCost),
     }));
-    setWithdrawals(userWds);
 
-    // Ambil donations dari shared
-    const sharedPay = getSharedPayments();
-    const userDons: DonationRecord[] = sharedPay.map(p => ({
-      id: p.id,
-      campaignId: p.campaignId,
-      campaignTitle: p.campaignTitle,
-      recipient: p.recipient,
-      cat: 'hamil',
-      amount: p.amount,
-      donorName: p.donorName,
-      anonymous: p.anonymous,
-      message: p.message || '',
-      method: 'QRIS',
-      ts: p.createdAt,
-      status: p.status,
-    }));
-    setDonations(userDons);
+    const form: HelpForm = {
+      role: formSnap.role || "",
+      cat,
+      nama: camp.applicantName,
+      wa: camp.whatsappNumber,
+      penerima: camp.recipientName,
+      provinsi: camp.province,
+      kabkota: camp.city,
+      hub: camp.relationship,
+      hubx: formSnap.hubx || "",
+      files: { ktp: [], kondisi: [], ekonomi: [], thumb: [] },
+      kondisiKet: camp.healthConditionDesc,
+      eko: camp.economicConditionDesc,
+      judul: camp.title,
+      story: camp.story,
+      durasi: camp.durationDays,
+      items,
+      agreeStmt: true,
+      agreeTruth: true,
+    };
+
+    const pubAt = camp.publishedAt ? new Date(camp.publishedAt).getTime() : undefined;
+    const deadline = pubAt ? pubAt + camp.durationDays * 864e5 : 0;
+
+    return {
+      id: camp.id,
+      owner: "me",
+      cat,
+      nama: camp.recipientName,
+      kota: camp.city,
+      judul: camp.title,
+      story: camp.story,
+      items,
+      target: Number(camp.targetAmount),
+      // Aggregate from CONFIRMED donations; synthetic entry preserves col(c) calculation
+      donors: camp._confirmedAmount
+        ? [{ n: "Donasi Terkonfirmasi", amt: Number(camp._confirmedAmount), msg: "", ts: Date.now() }]
+        : [],
+      deadline,
+      status: stMap[camp.status] || "review",
+      by: "Pemohon",
+      form,
+      durasi: camp.durationDays,
+      thumbnail: camp.thumbnailUrl || undefined,
+      adminNote: camp.adminNote || undefined,
+      submittedAt: new Date(camp.submittedAt).getTime(),
+      publishedAt: pubAt,
+      endedAt: camp.endedAt ? new Date(camp.endedAt).getTime() : undefined,
+      endReason: camp.endReason || undefined,
+    };
   }, []);
+
+  // Sinkronisasi data dari backend (Campaigns) dan shared localStorage (Withdrawals & Donations)
+  const refreshUserSharedData = useCallback(async () => {
+    // 1. Ambil kampanye dari PostgreSQL via API
+    try {
+      const campRes = await apiGetUserCampaigns();
+      if (campRes.success && Array.isArray(campRes.data?.campaigns) && campRes.data.campaigns.length > 0) {
+        const activeCamp = mapDbCampaignToMyCampaign(campRes.data.campaigns[0]);
+        setMyCampaign(activeCamp);
+      } else {
+        setMyCampaign(null);
+      }
+    } catch {
+      // Fallback lokal jika ada gangguan
+    }
+
+    // 2. Ambil ringkasan wallet & riwayat penarikan dari PostgreSQL via API
+    try {
+      const summaryRes = await apiGetWalletSummary();
+      if (summaryRes.success && summaryRes.data) {
+        setWalletSummary(summaryRes.data);
+        setWalletError(null);
+      } else {
+        setWalletError(summaryRes.message || "Gagal memuat ringkasan dompet.");
+      }
+    } catch {
+      setWalletError("Gagal terhubung ke server dompet.");
+    }
+
+    try {
+      const wdRes = await apiGetWalletWithdrawals();
+      if (wdRes.success && Array.isArray(wdRes.data?.withdrawals)) {
+        const mappedWds: Withdrawal[] = wdRes.data.withdrawals.map((w: any) => ({
+          id: w.id,
+          amt: Number(w.amount),
+          ts: new Date(w.createdAt).getTime(),
+          bank: w.bankName,
+          acctMasked: "•••• " + String(w.accountNumber).slice(-4),
+          name: w.accountHolder,
+          status: w.status === "COMPLETED" ? "selesai" : "diproses",
+        }));
+        setWithdrawals(mappedWds);
+      }
+    } catch {
+      // Fallback lokal jika ada gangguan
+    }
+
+    // 3. Ambil kampanye aktif NutriAssist dari PostgreSQL via API
+    try {
+      const actRes = await apiGetActiveCampaigns();
+      if (actRes.success && Array.isArray(actRes.data?.campaigns)) {
+        setActiveCampaignsError(null);
+        const mappedCampaigns: Campaign[] = actRes.data.campaigns.map((c: any) => {
+          const cat = c.category === "PREGNANCY" ? "hamil" : c.category === "BREASTFEEDING" ? "menyusui" : "anak";
+          const donors = (c.donations || []).map((d: any) => ({
+            n: d.isAnonymous ? "Anonim" : d.donorName,
+            amt: Number(d.amount),
+            msg: d.message || "",
+            ts: new Date(d.createdAt).getTime(),
+          }));
+          const pubAt = c.publishedAt ? new Date(c.publishedAt).getTime() : Date.now();
+          const deadline = c.deadlineAt ? new Date(c.deadlineAt).getTime() : pubAt + c.durationDays * 864e5;
+          const items = (c.items || []).map((it: any) => ({
+            n: it.name,
+            q: it.quantity,
+            c: Number(it.estimatedCost),
+          }));
+
+          return {
+            id: c.id,
+            owner: c.creatorUserId === user.id ? ("me" as const) : ("other" as const),
+            cat,
+            nama: c.recipientName,
+            kota: c.city,
+            judul: c.title,
+            story: c.story,
+            items,
+            target: Number(c.targetAmount),
+            donors,
+            deadline,
+            status: c.status === "ACTIVE" ? "berjalan" : "disetujui",
+            by: "Pemohon terverifikasi",
+            thumbnail: c.thumbnailUrl || undefined,
+          };
+        });
+        setActiveCampaigns(mappedCampaigns);
+      } else {
+        setActiveCampaignsError(actRes.message || "Gagal memuat kampanye aktif.");
+      }
+    } catch {
+      setActiveCampaignsError("Gagal terhubung ke server kampanye.");
+    }
+
+    // 4. Ambil donasi milik user dari PostgreSQL via API
+    try {
+      const myDonRes = await apiGetMyDonations();
+      if (myDonRes.success && Array.isArray(myDonRes.data?.donations)) {
+        const mappedDonations: DonationRecord[] = myDonRes.data.donations.map((d: any) => {
+          let uiStatus: "verifikasi" | "berhasil" | "gagal" = "verifikasi";
+          if (d.status === "CONFIRMED") uiStatus = "berhasil";
+          else if (d.status === "REJECTED") uiStatus = "gagal";
+
+          const campCat = d.campaign?.category === "PREGNANCY" ? "hamil" : d.campaign?.category === "BREASTFEEDING" ? "menyusui" : "anak";
+
+          return {
+            id: d.id,
+            campaignId: d.campaignId,
+            campaignTitle: d.campaign?.title || "Open Donasi",
+            recipient: d.campaign?.recipientName || "Penerima",
+            cat: campCat,
+            amount: Number(d.amount),
+            donorName: d.isAnonymous ? "Anonim" : d.donorName,
+            anonymous: d.isAnonymous,
+            message: d.message || "",
+            method: "QRIS",
+            ts: new Date(d.createdAt).getTime(),
+            status: uiStatus,
+          };
+        });
+        setDonations(mappedDonations);
+      }
+    } catch {
+      // Fallback lokal jika ada gangguan
+    }
+  }, [mapDbCampaignToMyCampaign]);
 
   useEffect(() => {
     if (isAuthorized) {
@@ -209,24 +464,24 @@ export default function DashboardPage() {
     };
   }, [isAuthorized, refreshUserSharedData]);
 
-  const handleAddDonation = (d: DonationRecord) => {
-    const qrisRecord: QrisPaymentRecord = {
-      id: d.id,
-      campaignId: d.campaignId,
-      campaignTitle: d.campaignTitle,
-      recipient: d.recipient,
-      amount: d.amount,
-      donorName: d.donorName,
-      anonymous: d.anonymous,
-      message: d.message,
-      method: 'QRIS',
-      createdAt: d.ts,
-      status: d.status,
-    };
-    const cur = getSharedPayments();
-    const next = [qrisRecord, ...cur];
-    saveSharedPayments(next);
-    refreshUserSharedData();
+  const handleAddDonation = async (d: {
+    campaignId: string;
+    amount: number;
+    donorName?: string;
+    isAnonymous?: boolean;
+    message?: string;
+  }): Promise<{ success: boolean; donationId?: string; message?: string }> => {
+    try {
+      const res = await apiCreateDonation(d);
+      if (res.success && res.data?.donation) {
+        await refreshUserSharedData();
+        return { success: true, donationId: res.data.donation.id };
+      } else {
+        return { success: false, message: res.message || "Gagal membuat donasi." };
+      }
+    } catch {
+      return { success: false, message: "Terjadi gangguan jaringan saat membuat transaksi donasi." };
+    }
   };
 
   // Open donasi yang masa tayangnya habis otomatis berstatus selesai
@@ -235,84 +490,144 @@ export default function DashboardPage() {
     const iv = setInterval(() => {
       setMyCampaign(c => {
         if (c && c.status === "berjalan" && c.deadline <= Date.now()) {
-          const ended: MyCampaign = { ...c, status: "selesai", endedAt: c.deadline, endReason: "expired" };
-          const active = getCurrentUser();
-          upsertUserCampaign(ended, active?.id);
-          return ended;
+          apiUpdateCampaignAction(c.id, { action: "finish", endReason: "expired" })
+            .then(() => refreshUserSharedData())
+            .catch(() => {});
+          return { ...c, status: "selesai", endedAt: c.deadline, endReason: "expired" };
         }
         return c;
       });
     }, 60000);
     return () => clearInterval(iv);
-  }, [myCampaign?.status]);
+  }, [myCampaign?.status, refreshUserSharedData]);
 
-  const handleSubmitCampaign = (c: MyCampaign) => {
-    const active = getCurrentUser();
-    upsertUserCampaign(c, active?.id);
-    refreshUserSharedData();
+  const handleSubmitCampaign = async (c: MyCampaign): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const f = c.form;
+      const catEnum = f.cat === "hamil" ? "PREGNANCY" : f.cat === "menyusui" ? "BREASTFEEDING" : "CHILD";
+
+      const relationship =
+        f.role === "self"
+          ? "Diri sendiri"
+          : f.role === "wali"
+          ? "Wali/pendamping"
+          : f.role === "lain"
+          ? (f.hub === "Lainnya" ? (f.hubx || "Lainnya") : (f.hub || "Lainnya"))
+          : (f.hub || "Diri sendiri");
+
+      const res = await apiCreateCampaign({
+        category: catEnum,
+        applicantName: f.nama,
+        recipientName: f.penerima,
+        whatsappNumber: f.wa,
+        relationship: relationship.trim().slice(0, 64),
+        province: f.provinsi,
+        city: f.kabkota,
+        title: f.judul,
+        story: f.story,
+        healthConditionDesc: f.kondisiKet,
+        economicConditionDesc: f.eko,
+        durationDays: f.durasi,
+        items: f.items.map(it => ({
+          name: it.n,
+          quantity: it.q,
+          estimatedCost: it.c,
+        })),
+        thumbnailUrl: c.thumbnail,
+        documents: {
+          ktp: f.files.ktp.map(file => file.name),
+          kondisi: f.files.kondisi.map(file => file.name),
+          ekonomi: f.files.ekonomi.map(file => file.name),
+          thumb: f.files.thumb.map(file => file.name),
+        },
+        formSnapshot: {
+          role: f.role,
+          hub: f.hub,
+          hubx: f.hubx,
+        },
+      });
+
+      if (res.success) {
+        await refreshUserSharedData();
+        return { success: true };
+      } else {
+        const errorMsg = res.message || "Gagal mengirim pengajuan open donasi.";
+        setToastMsg(errorMsg);
+        return { success: false, message: errorMsg };
+      }
+    } catch {
+      const errorMsg = "Terjadi gangguan jaringan saat mengirim pengajuan.";
+      setToastMsg(errorMsg);
+      return { success: false, message: errorMsg };
+    }
   };
 
-  const handlePublishCampaign = () => {
-    const now = Date.now();
-    setMyCampaign(c => {
-      if (c && c.status === "disetujui") {
-        const next: MyCampaign = { ...c, status: "berjalan", publishedAt: now, deadline: now + c.durasi * 864e5 };
-        const active = getCurrentUser();
-        upsertUserCampaign(next, active?.id);
-        return next;
+  const handlePublishCampaign = async () => {
+    if (!myCampaign) return;
+    try {
+      const res = await apiUpdateCampaignAction(myCampaign.id, { action: "publish" });
+      if (res.success) {
+        await refreshUserSharedData();
+        setToastMsg("Open donasi berhasil dipublikasikan.");
+      } else {
+        setToastMsg(res.message || "Gagal mempublikasikan donasi.");
       }
-      return c;
-    });
+    } catch {
+      setToastMsg("Terjadi gangguan jaringan saat mempublikasikan donasi.");
+    }
   };
 
-  const handleCancelCampaign = () => {
-    const now = Date.now();
-    setMyCampaign(c => {
-      if (c && (c.status === "review" || c.status === "disetujui")) {
-        const next: MyCampaign = { ...c, status: "dibatalkan", endedAt: now };
-        const active = getCurrentUser();
-        upsertUserCampaign(next, active?.id);
-        return next;
+  const handleCancelCampaign = async () => {
+    if (!myCampaign) return;
+    try {
+      const res = await apiUpdateCampaignAction(myCampaign.id, { action: "cancel" });
+      if (res.success) {
+        await refreshUserSharedData();
+        setToastMsg("Pengajuan open donasi berhasil dibatalkan.");
+      } else {
+        setToastMsg(res.message || "Gagal membatalkan pengajuan.");
       }
-      return c;
-    });
+    } catch {
+      setToastMsg("Terjadi gangguan jaringan saat membatalkan pengajuan.");
+    }
   };
 
-  const handleFinishCampaign = () => {
-    const now = Date.now();
-    setMyCampaign(c => {
-      if (c && c.status === "berjalan") {
-        const next: MyCampaign = { ...c, status: "selesai", endedAt: now, endReason: "manual" };
-        const active = getCurrentUser();
-        upsertUserCampaign(next, active?.id);
-        return next;
+  const handleFinishCampaign = async () => {
+    if (!myCampaign) return;
+    try {
+      const res = await apiUpdateCampaignAction(myCampaign.id, { action: "finish", endReason: "manual" });
+      if (res.success) {
+        await refreshUserSharedData();
+        setToastMsg("Open donasi berhasil diselesaikan.");
+      } else {
+        setToastMsg(res.message || "Gagal menyelesaikan donasi.");
       }
-      return c;
-    });
+    } catch {
+      setToastMsg("Terjadi gangguan jaringan saat menyelesaikan donasi.");
+    }
   };
 
   const handleResetCampaign = () => {
     setMyCampaign(null);
   };
 
-  const handleWithdraw = (w: Withdrawal) => {
-    const active = getCurrentUser();
-    const wdRecord: WithdrawalRecord = {
-      id: w.id,
-      userId: active?.id || 'usr_me',
-      userName: active?.name || w.name,
-      bank: w.bank,
-      acct: w.acctMasked.replace('•••• ', '10000000'), // Simpan nomor rekening
-      acctMasked: w.acctMasked,
-      name: w.name,
-      amount: w.amt,
-      createdAt: w.ts,
-      status: 'diproses',
-    };
-    const cur = getSharedWithdrawals();
-    const next = [wdRecord, ...cur];
-    saveSharedWithdrawals(next);
-    refreshUserSharedData();
+  const handleWithdraw = async (w: {
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+    amount: number;
+  }): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await apiCreateWithdrawal(w);
+      if (res.success) {
+        await refreshUserSharedData();
+        return { success: true };
+      } else {
+        return { success: false, message: res.message || "Gagal mengajukan penarikan dana." };
+      }
+    } catch {
+      return { success: false, message: "Terjadi gangguan jaringan saat mengajukan penarikan." };
+    }
   };
 
   const handleToast = (msg: string) => {
@@ -343,7 +658,14 @@ export default function DashboardPage() {
   });
 
   if (!isAuthorized) {
-    return null;
+    return (
+      <div className="min-h-screen bg-[#f3f6f5] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin" />
+          <p className="text-sm font-medium text-neutral-500">Memuat sesi pengguna...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -480,6 +802,8 @@ export default function DashboardPage() {
             onFinishCampaign={handleFinishCampaign}
             onResetCampaign={handleResetCampaign}
             withdrawals={withdrawals}
+            walletSummary={walletSummary}
+            walletError={walletError}
             onWithdraw={handleWithdraw}
           />
         </div>
@@ -489,6 +813,8 @@ export default function DashboardPage() {
             onToast={handleToast}
             myCampaign={myCampaign}
             donations={donations}
+            activeCampaigns={activeCampaigns}
+            activeCampaignsError={activeCampaignsError}
             onAddDonation={handleAddDonation}
           />
         )}
