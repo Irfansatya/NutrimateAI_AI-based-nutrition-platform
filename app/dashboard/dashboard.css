@@ -852,3 +852,129 @@ input[type=range] { width: 100%; accent-color: var(--g); }
   .db-gx-foot .db-btn { min-width: 0; flex: 1; }
   .db-gx-cnt { display: none; }
 }
+
+/* ===== HERO MOBILE RESPONSIVENESS (scoped; desktop and other sections unchanged) ===== */
+@media (max-width: 700px) {
+  #db-hero {
+    width: 100%;
+    padding: 16px var(--pad) 0;
+    min-height: 0;
+    background-position: center center !important;
+  }
+
+  #db-hero .db-hero-in {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #db-hero .db-hero-top {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  #db-hero .db-brand-white {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 42%;
+  }
+
+  #db-hero .db-hero-tools {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 65%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  #db-hero .db-date-pill,
+  #db-hero .db-guide-btn {
+    height: 32px;
+    min-width: 0;
+    padding: 0 10px;
+    gap: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  #db-hero .db-date-pill span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #db-hero .db-guide-btn svg {
+    width: 15px;
+    height: 15px;
+    flex: none;
+  }
+
+  #db-hero .db-hero-main {
+    width: 100%;
+    padding: 30px 0 24px;
+  }
+
+  #db-hero .db-hero-copy {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #db-hero .db-hero-copy h1 {
+    max-width: 100%;
+    font-size: clamp(28px, 7.2vw, 38px);
+    line-height: 1.16;
+    letter-spacing: -0.7px;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  #db-hero .db-hero-sub {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    margin-top: 10px;
+    font-size: 14px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+  }
+
+  #db-hero .db-tw-live {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  #db-hero {
+    padding-top: 14px;
+  }
+
+  #db-hero .db-hero-top {
+    gap: 8px;
+  }
+
+  #db-hero .db-brand-white {
+    max-width: 36%;
+  }
+
+  #db-hero .db-hero-tools {
+    max-width: 70%;
+    gap: 5px;
+  }
+
+  #db-hero .db-date-pill,
+  #db-hero .db-guide-btn {
+    height: 30px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+
+  #db-hero .db-hero-main {
+    padding-top: 26px;
+    padding-bottom: 22px;
+  }
+
+  #db-hero .db-hero-copy h1 {
+    font-size: clamp(26px, 7.4vw, 31px);
+    letter-spacing: -0.5px;
+  }
+}
