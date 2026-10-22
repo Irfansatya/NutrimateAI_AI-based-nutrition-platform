@@ -339,7 +339,6 @@ Jalankan perintah berikut dari root proyek sesuai kebutuhan.
 - `.env.example` hanya untuk dokumentasi nama variabel dan contoh placeholder, bukan nilai kredensial aktif.
 - Jangan menaruh database password, session token, password admin, atau API key pada README atau kode yang dikirim ke browser.
 - Jika suatu kredensial pernah terunggah ke repository, hapus dari sumbernya **dan rotasi kredensial tersebut**; menghapus teks dari commit terbaru tidak otomatis menghapusnya dari riwayat Git.
-- NutriPlan memakai katalog lokal dan aturan pemilihan menu, bukan API generative AI eksternal.
 - NutriDaily belum terhubung ke WhatsApp dan belum mengirim notifikasi otomatis.
 - NutriWallet saat ini merupakan pencatatan saldo virtual dan pengajuan penarikan; pencairan uang nyata belum tersedia.
 - Rekomendasi dalam aplikasi bukan diagnosis medis dan tidak menggantikan konsultasi dengan tenaga kesehatan.
