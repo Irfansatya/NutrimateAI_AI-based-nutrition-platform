@@ -1,6 +1,6 @@
 <div align="center">
 
-# NutriMate AI
+# NutrimateAI
 
 ### Pendamping nutrisi untuk ibu dan si kecil
 
